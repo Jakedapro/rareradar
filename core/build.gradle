@@ -1,0 +1,21 @@
+// Minecraft-independent logic for RareRadar V3. Built and unit-tested on its own
+// (`gradle -p core test`) and compiled into the mod via a srcDir in ../build.gradle.
+plugins { id 'java' }
+
+group = 'dev.rareradar'
+repositories { mavenCentral() }
+
+dependencies {
+    // Minecraft 1.21.1 ships Gson 2.10.1; match it so core behaves the same in-game.
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+tasks.withType(JavaCompile).configureEach { options.release = 21; options.compilerArgs << '-Xlint:all' << '-Xlint:-serial' }
+test {
+    useJUnitPlatform()
+    testLogging { events 'failed'; exceptionFormat 'full' }
+}
