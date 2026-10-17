@@ -172,6 +172,7 @@ public final class CobbleGalaxyBridge {
         }
         if (!add.isEmpty()) {
             int[] res = g.market.importAll(add);
+            for (PriceObservation p : add) TradeAssistant.onNewListing(p);
             GUI.saved += res[0];
             gtsCaptured += add.size();
             lastGtsCapture = now;

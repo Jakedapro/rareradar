@@ -39,6 +39,11 @@ public final class V3Config {
     /** HISTORY cards whose status text matches this are recorded as confirmed sales (hypothesis — verify in-game). */
     public String gtsSoldPattern = "(?i)\\b(sold|purchased|bought)\\b";
 
+    /** OBSERVE (default) or ASSISTED (chat alerts for possibly underpriced listings). Purchasing is never automated. */
+    public TradeAssistant.Mode tradingMode = TradeAssistant.Mode.OBSERVE;
+    /** Your estimate of the GTS sales fee in percent (unknown/NaN until you enter it; CobbleGalaxy does not document one). */
+    public double gtsFeePercent = Double.NaN;
+
     // Economics inputs (user-entered; NaN = unknown)
     public double huntPointValue = Double.NaN;
     public double tokenValue = Double.NaN;
@@ -72,6 +77,8 @@ public final class V3Config {
         if (!Double.isNaN(huntPointValue) && (!Double.isFinite(huntPointValue) || huntPointValue < 0)) huntPointValue = Double.NaN;
         if (!Double.isNaN(tokenValue) && (!Double.isFinite(tokenValue) || tokenValue < 0)) tokenValue = Double.NaN;
         if (!(travelMinutes >= 0) || travelMinutes > 600) travelMinutes = 0;
+        if (tradingMode == null) tradingMode = TradeAssistant.Mode.OBSERVE;
+        if (!Double.isNaN(gtsFeePercent) && !(gtsFeePercent >= 0 && gtsFeePercent <= 50)) gtsFeePercent = Double.NaN;
         if (privateServerAllowlist == null) privateServerAllowlist = new LinkedHashSet<>();
         if (rarity == null) rarity = new RarityConfig();
         if (valuation == null) valuation = new ValuationConfig();

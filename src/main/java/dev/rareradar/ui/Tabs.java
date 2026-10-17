@@ -304,6 +304,11 @@ final class Tabs {
                     MinecraftClient.getInstance().execute(() -> s.flash("§cPut a CSV at " + imp + " (" + e.getMessage() + ")"));
                 }
             }));
+            s.button(x + 288, y + 22, 170, "Trading: " + (g().cfg.tradingMode == TradeAssistant.Mode.ASSISTED ? "§eASSISTED alerts" : "observe only"), () -> {
+                g().cfg.tradingMode = g().cfg.tradingMode == TradeAssistant.Mode.ASSISTED ? TradeAssistant.Mode.OBSERVE : TradeAssistant.Mode.ASSISTED;
+                g().saveConfig();
+                s.rebuild();
+            });
             s.button(x + 164, y + 22, 120, "Export market CSV", () ->
                     writeFile(s, g().dir.resolve("export").resolve("market.csv"), MarketCsv.export(g().market.all()), "market CSV"));
             return 44;

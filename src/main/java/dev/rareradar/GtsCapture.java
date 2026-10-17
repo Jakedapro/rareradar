@@ -140,6 +140,7 @@ public final class GtsCapture {
         String err = p.validate();
         if (err != null) { seenKeys.remove(key); stats.reject("invalid: " + err, key); return; }
         g.market.add(p);
+        TradeAssistant.onNewListing(p);
         stats.saved++;
         Log.info("[GTS capture] saved " + p.kind + " " + p.species + (Boolean.TRUE.equals(p.shiny) ? " (shiny)" : "") + " $" + Math.round(p.price) + " from " + source);
     }
