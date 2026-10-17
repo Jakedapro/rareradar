@@ -16,6 +16,8 @@ dependencies {
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 tasks.withType(JavaCompile).configureEach { options.release = 21; options.compilerArgs << '-Xlint:all' << '-Xlint:-serial' }
 test {
-    useJUnitPlatform()
+    // Benchmarks are opt-in: gradle -p core test -Pbench
+    useJUnitPlatform { if (!project.hasProperty('bench')) excludeTags 'benchmark' }
+    if (project.hasProperty('bench')) testLogging.showStandardStreams = true
     testLogging { events 'failed'; exceptionFormat 'full' }
 }

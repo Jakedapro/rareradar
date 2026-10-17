@@ -3,10 +3,16 @@
   "id": "rareradar",
   "version": "${version}",
   "name": "Rare Radar",
-  "description": "Highlights and lists nearby rare Cobblemon: shinies, legendaries, mythicals, Ultra Beasts and Paradox Pokemon.",
+  "description": "Rare Pokémon radar and data-driven economy assistant for Cobblemon (market database, profit engine, hunts, breeding, spawn statistics). Automation is single-player/private-server only.",
   "environment": "client",
-  "entrypoints": { "client": ["dev.rareradar.RareRadarClient"] },
-  "mixins": ["rareradar.mixins.json"],
+  "entrypoints": {
+    "client": [
+      "dev.rareradar.RareRadarClient"
+    ]
+  },
+  "mixins": [
+    "rareradar.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.17.2",
     "fabric-api": "*",
