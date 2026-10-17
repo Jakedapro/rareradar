@@ -55,10 +55,12 @@ public final class AutoHunt {
     public static String status() { return status; }
     public static AutoHuntMachine machine() { return machine; }
 
-    private static EnvironmentGate.Decision gate(MinecraftClient c) {
-        boolean single = c.isInSingleplayer();
-        String addr = c.getCurrentServerEntry() == null ? null : c.getCurrentServerEntry().address;
-        return EnvironmentGate.check(single, addr, Galaxy.get().cfg.privateServerAllowlist);
+    private static dev.rareradar.core.automation.TaskRecord task;
+    private static int lastCaptures, lastFailures;
+    private static boolean rulesNoticeShown;
+
+    private static dev.rareradar.core.automation.Module module() {
+        return train ? dev.rareradar.core.automation.Module.TRAINING : dev.rareradar.core.automation.Module.HUNTING;
     }
 
     public static void toggleTrain(MinecraftClient client) {
@@ -76,21 +78,59 @@ public final class AutoHunt {
 
     private static void start(MinecraftClient client) {
         if (client.player == null) return;
-        EnvironmentGate.Decision d = gate(client);
-        if (!d.allowed()) {
-            client.player.sendMessage(Text.literal("§cAuto " + (train ? "Train" : "Hunt") + " refused: " + d.reason()), false);
-            train = false;
-            RareRadarClient.LOG.info("Automation refused: {}", d.reason());
-            return;
+        Galaxy g = Galaxy.get();
+        var ctl = g.controller;
+        long now = System.currentTimeMillis();
+        String label = train ? "Auto Train" : "Auto Hunt";
+        // Pressing the key is the user's per-session enable (profiles require it every session).
+        if (!ctl.sessionEnabled()) {
+            var e = ctl.enable(now);
+            if (!e.allowed()) { refuse(client, label, e.reason()); return; }
         }
+        var prof = ctl.profile();
+        if (prof != null && !prof.singleplayer && !rulesNoticeShown) {
+            rulesNoticeShown = true;
+            client.player.sendMessage(Text.literal("§eRareRadar automation on " + prof.displayName + " — authorised by: " + prof.authorizationSource
+                    + (prof.notes.isBlank() ? "" : "§7 (" + prof.notes + ")")), false);
+        }
+        ctl.setModuleEnabled(module(), true);
+        if (!train) {
+            Map<String, Integer> usable = usableBalls(client.player);
+            var rc = dev.rareradar.core.automation.ResourceCheck.forHunting(usable, 3, client.player.getHealth(), g.cfg.safety.minHealth);
+            if (!rc.ok()) { refuse(client, label, String.join("; ", rc.problems())); return; }
+            for (String w : rc.warnings()) client.player.sendMessage(Text.literal("§6" + w), false);
+        }
+        var d = ctl.acquire(module(), now);
+        if (!d.allowed()) { refuse(client, label, d.reason()); return; }
+        task = g.tasks.start(module(), train ? "Train lead Pokémon" : "Hunt and catch qualifying Pokémon", prof == null ? "" : prof.id, false, now);
+        lastCaptures = lastFailures = 0;
         active = true;
         trainTicks = 0;
         machine = new AutoHuntMachine(Galaxy.get().cfg.safety);
         machine.start(System.currentTimeMillis());
         target = null;
         ballEntityId = -1;
-        RareRadarClient.LOG.info("Auto {} ON ({})", train ? "train" : "hunt", d.reason());
-        client.player.sendMessage(Text.literal((train ? "Auto Train" : "Auto Hunt") + ": ON — " + d.reason()), true);
+        RareRadarClient.LOG.info("Auto {} ON (profile {})", train ? "train" : "hunt", prof == null ? "?" : prof.id);
+        client.player.sendMessage(Text.literal(label + ": ON — " + (prof == null ? "" : prof.displayName) + " · Backspace = emergency stop"), true);
+    }
+
+    private static void refuse(MinecraftClient client, String label, String why) {
+        train = false;
+        client.player.sendMessage(Text.literal("§c" + label + " refused: " + why), false);
+        RareRadarClient.LOG.info("Automation refused: {}", why);
+    }
+
+    /** Balls the ball policy would allow (protected balls and reserves excluded). */
+    private static Map<String, Integer> usableBalls(ClientPlayerEntity p) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (ItemStack st : p.getInventory().main) { String id = CobblemonCompat.ballId(st); if (id != null) counts.merge(id, st.getCount(), Integer::sum); }
+        var pol = Galaxy.get().cfg.balls;
+        Map<String, Integer> usable = new HashMap<>();
+        for (var e : counts.entrySet()) {
+            if (pol.protectedBalls.contains(e.getKey()) && !Galaxy.get().cfg.allowProtectedBalls) continue;
+            usable.put(e.getKey(), Math.max(0, e.getValue() - pol.reserves.getOrDefault(e.getKey(), 0)));
+        }
+        return usable;
     }
 
     /** Stops everything and releases keys. Safe to call at any time (disconnect, world change, emergency key). */
@@ -100,9 +140,19 @@ public final class AutoHunt {
         train = false;
         target = null;
         ballEntityId = -1;
-        if (machine != null && machine.running()) machine.abort(System.currentTimeMillis(), why);
+        long now = System.currentTimeMillis();
+        if (machine != null && machine.running()) machine.abort(now, why);
         Navigator.release(client);
         status = "stopped: " + why;
+        Galaxy g = Galaxy.get();
+        if (g != null) {
+            for (var m : dev.rareradar.core.automation.Module.values()) if (m != dev.rareradar.core.automation.Module.SAFETY) g.controller.release(m, now, why);
+            if (task != null) {
+                g.tasks.update(task, why.contains("error") || why.contains("refused") ? dev.rareradar.core.automation.TaskRecord.Status.FAILED
+                        : dev.rareradar.core.automation.TaskRecord.Status.DONE, status, why, now);
+                task = null;
+            }
+        }
         if (was) {
             RareRadarClient.LOG.info("Auto hunt/train stopped: {}", why);
             if (client.player != null) client.player.sendMessage(Text.literal("Auto Hunt stopped: " + why), true);
@@ -114,6 +164,10 @@ public final class AutoHunt {
         if (!active) return;
         ClientPlayerEntity p = client.player;
         if (p == null || client.world == null) { stop(client, "world unloaded"); return; }
+        long now = System.currentTimeMillis();
+        var ctl = Galaxy.get().controller;
+        var may = ctl.mayRun(module(), now);
+        if (!may.allowed() || !ctl.holds(module())) { stop(client, may.allowed() ? "control taken by another module" : may.reason()); return; }
         if (train) { tickTrain(client, p); return; }
 
         Sensors s = sense(client, p);
@@ -124,6 +178,21 @@ public final class AutoHunt {
                 + " · caught " + machine.captures();
         execute(client, p, cmd);
         onOutcome(client, machine.consumeOutcome()); // exactly once per throw
+        ctl.report(module(), switch (machine.state()) {
+            case SCAN, SELECT_TARGET, RETRY -> dev.rareradar.core.automation.AutomationController.State.SCANNING;
+            case PLAN_ROUTE -> dev.rareradar.core.automation.AutomationController.State.PLANNING;
+            case APPROACH -> dev.rareradar.core.automation.AutomationController.State.NAVIGATING;
+            case AIM, THROW -> dev.rareradar.core.automation.AutomationController.State.INTERACTING;
+            case AWAIT_RESULT, VERIFY_CAPTURE -> dev.rareradar.core.automation.AutomationController.State.VERIFYING;
+            case SUCCESS -> dev.rareradar.core.automation.AutomationController.State.TARGET_SELECTED;
+            default -> dev.rareradar.core.automation.AutomationController.State.IDLE;
+        });
+        // Feed successes/failures to the controller: repeated failures stop automation instead of retrying forever.
+        if (machine.captures() > lastCaptures) { lastCaptures = machine.captures(); ctl.outcome(dev.rareradar.core.automation.Module.CAPTURE, now, "capture", "verified by ball state", true); }
+        if (machine.failures() > lastFailures) {
+            lastFailures = machine.failures();
+            ctl.outcome(module(), now, "attempt", machine.history().iterator().hasNext() ? lastTransition() : "", false);
+        }
         if (!machine.running()) stop(client, machine.stopReason().isEmpty() ? "finished" : machine.stopReason());
     }
 
@@ -191,6 +260,12 @@ public final class AutoHunt {
     }
 
     private static boolean lastProgress = true;
+
+    private static String lastTransition() {
+        String last = "";
+        for (var t : machine.history()) last = t.to() + ": " + t.why();
+        return last;
+    }
 
     private static void onOutcome(MinecraftClient c, CaptureOutcome o) {
         if (o == null) return;

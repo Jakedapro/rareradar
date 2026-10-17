@@ -58,12 +58,20 @@ public class RareRadarClient implements ClientModInitializer {
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
             RadarScanner.clear();
-            String world = client.isInSingleplayer() ? "singleplayer"
-                    : client.getCurrentServerEntry() == null ? "multiplayer" : client.getCurrentServerEntry().address;
-            Galaxy.get().sessions.begin(System.currentTimeMillis(), world);
+            String address = client.getCurrentServerEntry() == null ? null : client.getCurrentServerEntry().address;
+            String world = client.isInSingleplayer() ? "singleplayer" : address == null ? "multiplayer" : address;
+            Galaxy g = Galaxy.get();
+            g.sessions.begin(System.currentTimeMillis(), world);
+            var profile = g.profiles.resolve(client.isInSingleplayer(), address);
+            g.controller.setProfile(profile, System.currentTimeMillis());
+            g.saveProfiles();
+            LOG.info("[Automation] connected to {} → profile '{}' (automation {}{})", world, profile.id,
+                    profile.automationAuthorized ? "authorised: " + profile.authorizationSource : "NOT authorised",
+                    profile.requireUserEnable ? ", needs enabling each session" : "");
         }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
             AutoHunt.stop(client, "disconnected");
+            Galaxy.get().controller.setProfile(null, System.currentTimeMillis());
             RadarScanner.clear();
             Galaxy g = Galaxy.get();
             g.sessions.end(System.currentTimeMillis());
@@ -85,7 +93,10 @@ public class RareRadarClient implements ClientModInitializer {
 
     private static void tick(MinecraftClient client) {
         // Emergency stop first, and it works even while a screen is open.
-        while (stopKey.wasPressed()) AutoHunt.stop(client, "emergency stop key");
+        while (stopKey.wasPressed()) {
+            Galaxy.get().controller.emergencyStop(System.currentTimeMillis(), "emergency stop key");
+            AutoHunt.stop(client, "emergency stop key");
+        }
         while (menuKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new DashboardScreen());
         while (settingsKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new SettingsScreen());
         while (trainKey.wasPressed()) AutoHunt.toggleTrain(client);

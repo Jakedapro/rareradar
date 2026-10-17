@@ -54,6 +54,11 @@ public final class Galaxy {
     public final OpportunityFinder opportunities;
     public final RarityEngine rarity;
     private volatile PriceModel model;
+    public final dev.rareradar.core.automation.ServerProfiles profiles;
+    public final dev.rareradar.core.automation.AutomationController controller;
+    public final dev.rareradar.core.automation.TaskStore tasks;
+    public final dev.rareradar.core.automation.StrategyEvaluator strategies = new dev.rareradar.core.automation.StrategyEvaluator();
+    private final JsonlStore<dev.rareradar.core.automation.AuditEvent> auditStore;
     private volatile boolean training;
 
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().serializeSpecialFloatingPointValues().disableHtmlEscaping().create();
@@ -83,6 +88,14 @@ public final class Galaxy {
             int[] r = spawnRules.loadDirectory(spawnDir);
             Log.info("Loaded spawn rules from " + r[0] + " file(s), " + r[1] + " failed");
         }
+        profiles = loadProfiles();
+        auditStore = new JsonlStore<>(dataDir.resolve("automation_audit.jsonl"), dev.rareradar.core.automation.AuditEvent.class, io);
+        dev.rareradar.core.automation.AutomationController.Limits lim = new dev.rareradar.core.automation.AutomationController.Limits();
+        lim.maxRunMinutes = cfg.safety.maxRunMinutes;
+        controller = new dev.rareradar.core.automation.AutomationController(lim, auditStore::append);
+        tasks = new dev.rareradar.core.automation.TaskStore(dataDir.resolve("automation_tasks.jsonl"), io);
+        if (!tasks.interruptedOnLoad().isEmpty())
+            Log.warn(tasks.interruptedOnLoad().size() + " automation task(s) were interrupted by the last shutdown; none will resume automatically");
         valuator = new Valuator(market, cfg.valuation);
         opportunities = new OpportunityFinder(market, valuator, cfg.valuation);
         rarity = new RarityEngine(cfg.rarity, watchlist,
@@ -158,6 +171,34 @@ public final class Galaxy {
         Log.info("Created V3 config (tier toggles migrated from rareradar.json)");
     }
 
+    private dev.rareradar.core.automation.ServerProfiles loadProfiles() {
+        Path f = dir.resolve("servers.json");
+        dev.rareradar.core.automation.ServerProfiles p = null;
+        try {
+            if (Files.exists(f)) p = PRETTY.fromJson(Files.readString(f), dev.rareradar.core.automation.ServerProfiles.class);
+        } catch (Exception e) {
+            Log.warn("config/rareradar/servers.json is invalid (" + e.getMessage() + "); defaults used, bad file kept");
+            backup(f);
+        }
+        if (p == null) {
+            p = dev.rareradar.core.automation.ServerProfiles.defaults();
+            // Migrate V3's private-server allowlist: those servers were explicitly authorised by the user.
+            for (String host : cfg.privateServerAllowlist) {
+                var prof = p.resolve(false, host);
+                if (!prof.automationAuthorized && !prof.id.equals("unknown"))
+                    dev.rareradar.core.automation.ServerProfiles.authorize(prof, "Migrated from the V3 private-server allowlist", System.currentTimeMillis());
+            }
+        }
+        p.sanitize();
+        return p;
+    }
+
+    public void saveProfiles() {
+        String json = PRETTY.toJson(profiles);
+        Path f = dir.resolve("servers.json");
+        io.submit(() -> writeAtomic(f, json));
+    }
+
     public void saveConfig() {
         String json = PRETTY.toJson(cfg);
         Path f = dir.resolve("v3.json");
@@ -205,6 +246,7 @@ public final class Galaxy {
     public void shutdown() {
         exposure.save();
         saveConfig();
+        saveProfiles();
         io.flush(3000);
         io.close();
     }

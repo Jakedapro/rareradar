@@ -639,7 +639,7 @@ final class Tabs {
 
     // =================================================================== Config
     static final class Config implements Tab {
-        private TextFieldWidget watchSpecies, allow, hpValue, tokenValue, bossSpecies;
+        private TextFieldWidget watchSpecies, hpValue, tokenValue, bossSpecies;
 
         public String name() { return "Config"; }
 
@@ -687,15 +687,7 @@ final class Tabs {
             s.button(x + 350, y4, 80, "Boss: stone", () -> logBoss(true));
             s.button(x + 432, y4, 80, "Boss: none", () -> logBoss(false));
             int y5 = y4 + 22;
-            allow = s.field(x, y5, 150, "private server address");
-            s.button(x + 154, y5, 150, "Allow automation there", () -> {
-                String a = allow.getText().trim();
-                if (a.isEmpty()) throw new IllegalArgumentException("Enter your private server's address");
-                if (a.toLowerCase(Locale.ROOT).contains("cobblegalaxy")) throw new IllegalArgumentException("CobbleGalaxy's rules ban automation — not allowed");
-                c.privateServerAllowlist.add(a);
-                s.flash("§eAllowlisted " + a + " — only do this for a server you own or where automation is explicitly permitted.");
-            });
-            s.button(x + 308, y5, 90, "Clear allowlist", () -> c.privateServerAllowlist.clear());
+            s.button(x, y5, 200, "Automation permissions → Automation page", () -> {});
             s.button(x + 402, y5, 120, "Master Balls: " + (c.allowProtectedBalls ? "§cALLOWED" : "protected"), () -> { c.allowProtectedBalls = !c.allowProtectedBalls; s.rebuild(); });
             int y6 = y5 + 22;
             var r = c.rarity;
@@ -740,16 +732,110 @@ final class Tabs {
                     r.wShiny, r.wLegendary, r.wMythical, r.wSpecial, r.wDemand, r.wWatchlist)));
             out.add(Line.h("ECONOMIC INPUTS"));
             out.add(Line.t("Hunt Point value: " + Money.fmt(c.huntPointValue) + " · token value: " + Money.fmt(c.tokenValue) + " · travel " + c.travelMinutes + " min"));
-            out.add(Line.h("AUTOMATION (private worlds only)"));
-            out.add(Line.t("Allowlist: " + (c.privateServerAllowlist.isEmpty() ? "empty (single-player only)" : String.join(", ", c.privateServerAllowlist))));
+            out.add(Line.h("AUTOMATION LIMITS"));
             out.add(Line.t(String.format(Locale.ROOT, "Limits: %d min/run · %d balls/run · %d balls/target · stop below %.0f HP", c.safety.maxRunMinutes, c.safety.maxBallsPerRun, c.safety.maxBallsPerTarget, c.safety.minHealth)));
-            out.add(Line.warn("CobbleGalaxy's rules prohibit macros and automation: AutoHunt/AutoTrain are always refused there."));
+            out.add(Line.dim("Per-server permissions, enable/pause/stop and the audit log are on the Automation page."));
             if (CobbleGalaxyBridge.present()) {
                 out.add(Line.h("COBBLEGALAXY BRIDGE (read-only)"));
                 out.add(Line.t("hunts " + ago(CobbleGalaxyBridge.lastHuntSync) + " · GTS " + ago(CobbleGalaxyBridge.lastGtsCapture) + " · dex " + ago(CobbleGalaxyBridge.lastDexSync) + " · PokéBuilder " + ago(CobbleGalaxyBridge.lastBuilderSync)));
                 if (!CobbleGalaxyBridge.disabledFeatures().isEmpty()) out.add(Line.warn("Disabled after errors: " + CobbleGalaxyBridge.disabledFeatures()));
             }
             out.add(Line.dim("Data folder: " + g().dir));
+        }
+    }
+
+    // =================================================================== Automation (V4)
+    static final class Automation implements Tab {
+        private TextFieldWidget statement;
+
+        public String name() { return "Automation"; }
+
+        public int widgets(DashboardScreen s, int x, int y, int w) {
+            var ctl = g().controller;
+            var prof = ctl.profile();
+            s.button(x, y, 110, ctl.sessionEnabled() ? "§aEnabled" : "Enable session", () -> {
+                var d = ctl.enable(now());
+                s.flash(d.allowed() ? "§aAutomation enabled for this session (modules still need their toggle/keys)" : "§c" + d.reason());
+                s.rebuild();
+            });
+            s.button(x + 114, y, 70, "Pause", () -> { ctl.pause(now(), "dashboard"); AutoHunt.stop(MinecraftClient.getInstance(), "paused"); s.rebuild(); });
+            s.button(x + 188, y, 70, "Resume", () -> { s.flash(ctl.resume(now()).reason()); s.rebuild(); });
+            s.button(x + 262, y, 120, "§cEMERGENCY STOP", () -> {
+                ctl.emergencyStop(now(), "dashboard emergency stop");
+                AutoHunt.stop(MinecraftClient.getInstance(), "emergency stop");
+                s.rebuild();
+            });
+            int y2 = y + 22, bx = x;
+            for (var m : List.of(dev.rareradar.core.automation.Module.HUNTING, dev.rareradar.core.automation.Module.CAPTURE,
+                    dev.rareradar.core.automation.Module.NAVIGATION, dev.rareradar.core.automation.Module.TRAINING)) {
+                s.button(bx, y2, 110, m.label + ": " + (ctl.moduleEnabled(m) ? "§aON" : "off"), () -> { ctl.setModuleEnabled(m, !ctl.moduleEnabled(m)); s.rebuild(); });
+                bx += 114;
+            }
+            int y3 = y2 + 22;
+            if (prof != null && !prof.singleplayer) {
+                statement = s.field(x, y3, 300, "who granted permission (e.g. 'I own this server')");
+                s.button(x + 304, y3, 140, "Confirm permission", () -> {
+                    dev.rareradar.core.automation.ServerProfiles.authorize(prof, statement.getText(), now());
+                    g().saveProfiles();
+                    s.flash("§eRecorded: automation authorised on " + prof.displayName + " (" + prof.authorizationSource + ")");
+                    s.rebuild();
+                });
+                s.button(x + 448, y3, 90, "Revoke", () -> {
+                    dev.rareradar.core.automation.ServerProfiles.revoke(prof);
+                    ctl.emergencyStop(now(), "permission revoked");
+                    AutoHunt.stop(MinecraftClient.getInstance(), "permission revoked");
+                    g().saveProfiles();
+                    s.rebuild();
+                });
+                return 66;
+            }
+            return 44;
+        }
+
+        public void lines(List<Line> out) {
+            Galaxy g = g();
+            var ctl = g.controller;
+            var prof = ctl.profile();
+            out.add(Line.h("SERVER PROFILE"));
+            if (prof == null) out.add(Line.dim("Not connected."));
+            else {
+                out.add(Line.t(prof.displayName + " (" + prof.id + ") · automation " + (prof.automationAuthorized ? "§aauthorised" : "§cnot authorised")));
+                if (prof.automationAuthorized) out.add(Line.dim("  authorised by: " + prof.authorizationSource));
+                if (!prof.notes.isBlank()) out.add(Line.warn("  " + prof.notes));
+                StringBuilder mods = new StringBuilder("  modules: ");
+                for (var m : dev.rareradar.core.automation.Module.values()) mods.append(m.label).append('=').append(prof.status(m)).append("  ");
+                out.add(Line.dim(mods.toString()));
+            }
+            out.add(Line.h("CONTROLLER"));
+            out.add(Line.t("State " + ctl.state() + " · session " + (ctl.sessionEnabled() ? "enabled" : "not enabled") + " · control held by "
+                    + (ctl.leaseHolder() == null ? "nobody" : ctl.leaseHolder().label) + (ctl.stopReason().isBlank() ? "" : " · last stop: " + ctl.stopReason())));
+            out.add(Line.t("AutoHunt: " + AutoHunt.status()));
+            out.add(Line.dim("Keys: K = hunt, L = train, Backspace = emergency stop. GTS trading automation: unsupported (no verified purchase interface)."));
+            out.add(Line.blank());
+            out.add(Line.h("PLANNER  (risk-adjusted Pokédollars/hour; executable = RareRadar can run it here)"));
+            var plans = dev.rareradar.core.automation.TaskPlanner.plan(options(), ctl, g.strategies, now());
+            if (plans.isEmpty()) out.add(Line.dim("No activity has a profit estimate yet — log sessions on the Economy page."));
+            for (var p : plans) {
+                String text = p.option().name() + " — " + Money.fmt(p.riskAdjustedPerHour()) + "/h risk-adjusted · " + p.why();
+                out.add(p.executable() ? Line.good("▶ " + text) : Line.t("• " + text));
+                for (String f : p.knownFacts()) out.add(Line.dim("    fact: " + f));
+                for (String e : p.estimates()) out.add(Line.dim("    estimate: " + e));
+            }
+            out.add(Line.blank());
+            out.add(Line.h("TASKS"));
+            var tasks = g.tasks.all();
+            for (int i = tasks.size() - 1, k = 0; i >= 0 && k < 8; i--, k++) {
+                var t = tasks.get(i);
+                out.add(Line.t(String.format(Locale.ROOT, "%s %s · %s · %s%s", t.module.label, t.status, t.objective, t.lastState,
+                        t.note == null || t.note.isBlank() ? "" : " · " + t.note)));
+            }
+            if (tasks.isEmpty()) out.add(Line.dim("No automation tasks yet."));
+            out.add(Line.h("AUDIT LOG (latest first; full log in data/automation_audit.jsonl)"));
+            var recent = ctl.recent();
+            for (int i = recent.size() - 1, k = 0; i >= 0 && k < 15; i--, k++) {
+                var e = recent.get(i);
+                out.add(Line.dim(String.format(Locale.ROOT, "%tT %s %s %s %s", e.ts(), e.module().label, e.action(), e.outcome(), e.detail())));
+            }
         }
     }
 }
