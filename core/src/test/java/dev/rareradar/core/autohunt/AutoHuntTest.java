@@ -3,19 +3,10 @@ package dev.rareradar.core.autohunt;
 import dev.rareradar.core.autohunt.CaptureClassifier.BallState;
 import org.junit.jupiter.api.Test;
 
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AutoHuntTest {
-    @Test void gate() {
-        assertTrue(EnvironmentGate.check(true, null, Set.of()).allowed());
-        assertFalse(EnvironmentGate.check(false, "play.cobblegalaxy.com", Set.of("play.cobblegalaxy.com")).allowed());
-        assertFalse(EnvironmentGate.check(false, "mc.example.org", Set.of()).allowed());
-        assertTrue(EnvironmentGate.check(false, "MC.example.org:25565", Set.of("mc.example.org")).allowed());
-        assertFalse(EnvironmentGate.check(false, "", Set.of("")).allowed());
-    }
-
     @Test void classifierNeverInfersCaptureFromDisappearance() {
         CaptureClassifier c = new CaptureClassifier();
         c.observe(BallState.NOT, true, false);

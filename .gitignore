@@ -5,3 +5,4 @@ libs/
 run/
 .idea/
 *.iml
+.claude/worktrees/
