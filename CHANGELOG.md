@@ -1,5 +1,35 @@
 # Changelog
 
+## 4.0.0-alpha.1 — "Project Autonomy" (in progress)
+
+### Added
+- **Knowledge base:** versioned datasets built from the Cobblemon 1.8.2 data files, with provenance on every record (`tools/knowledge/build_knowledge.py`).
+  - 1,025 species and 396 forms (stats, types, abilities, catch rate, EV yield, evolutions).
+  - 5,044 spawn entries and 192 biome tags.
+  - Loaded in the background at startup.
+  - New **Knowledge** dashboard page.
+- **Server profiles:** matched by the real connection address.
+  - CobbleGalaxy (`*.cobblegalaxy.com`; the modpack lists `forge.cobblegalaxy.com`) is authorised on the player's recorded statement and still needs enabling each session.
+  - Other servers need an explicit, recorded confirmation.
+  - V3 allowlist entries are migrated.
+- **Central automation controller:**
+  - One module holds control at a time.
+  - Per-session enable, module toggles, pause/resume and emergency stop (Backspace, or the dashboard).
+  - Run-time limit and stop after repeated failures.
+  - Persistent audit log (`data/automation_audit.jsonl`) and task records (`data/automation_tasks.jsonl`); interrupted tasks never resume automatically.
+- **Planner:** activities ranked by risk-adjusted value per hour, marked executable or advice-only, with facts, estimates and assumptions shown separately. Strategy predictions are calibrated against realised results.
+- **Estimates:**
+  - Hunting value estimates from your own encounters and market data, including shiny probability with Cobblemon's documented 1/8192 default as a prior.
+  - **EV training planner**, using the verified EV yields.
+- **Assisted trading (Mode B):** optional chat alerts for possibly underpriced new listings, with a fee-adjusted theoretical margin. **Purchasing is never automated.**
+- **V4 HUD header:** server profile, automation state, task status, session realised profit per hour.
+- **Automation** dashboard page.
+- **CI:** fails if the jar lacks the knowledge datasets, `fabric.mod.json` or the mixin config.
+
+### Changed
+- AutoHunt/AutoTrain run only through the controller, with a resource pre-check before hunting; capture outcomes feed the controller's error-stop.
+- The hard-coded CobbleGalaxy block is replaced by server profiles.
+
 ## Unreleased — V4 knowledge database
 
 ### Added
