@@ -4,7 +4,7 @@
 
 ### Added
 - **CI** (GitHub Actions): core tests plus a real Loom build against Cobblemon 1.8.2.
-- **`core/` module**: Minecraft-independent logic with 98 unit tests (`gradle -p core test`).
+- **`core/` module**: Minecraft-independent logic with 102 unit tests (`gradle -p core test`).
 - **Rarity engine**: configurable `R = w1·S + w2·L + w3·M + w4·P + w5·D` (a priority score, not a spawn probability). Adds a watchlist with JSON import/export, plus target ranking by watchlist priority and distance-discounted score.
 - **Market database** (append-only JSONL with corruption recovery):
   - Listings, confirmed sales, STS payouts and purchases are kept separate.
@@ -60,6 +60,16 @@
 - Static target references survived world changes and disconnects.
 - Stuck and approach timers reset on every re-path, so a stuck bot could loop forever (found by a new unit test).
 - Pinned hunts whose titles contain progress counters no longer create duplicates, and unpinned overlay hunts go stale after 36 h.
+- From an independent code review:
+  - AutoHunt never reported a found path (it could only catch targets already in range).
+  - The first plan after selecting a target used a stale target.
+  - Captures were counted every tick while a menu was open.
+  - Per-target ball budgets reset when the same target was re-selected.
+  - The cheapest ball could be thrown at a rare target whose radar entry had dropped.
+  - AutoHunt did not pause during the player's own battle.
+  - AutoTrain could battle rares.
+  - Completed hunts were resurrected by the overlay sync.
+  - A crash lost observation time, overstating encounter rates; sessions are now checkpointed and recovered.
 - Diagonal pathfinding moves clipped head-height corners.
 - Hand-edited config values were not validated.
 

@@ -3,7 +3,7 @@
 Client-side Fabric mod for **Minecraft 1.21.1 + Cobblemon 1.8.x**. It finds rare Pokémon, and it is a data-driven economy assistant for the CobbleGalaxy server that gets more useful as you log real observations.
 
 > **Development status: please read.**
-> * **The mod builds:** GitHub Actions (`.github/workflows/build.yml`) runs a real Loom build against Minecraft 1.21.1 and the Cobblemon 1.8.2 jar, plus the 98 core unit tests, and both pass. The jar is available as a CI artifact.
+> * **The mod builds:** GitHub Actions (`.github/workflows/build.yml`) runs a real Loom build against Minecraft 1.21.1 and the Cobblemon 1.8.2 jar, plus the 102 core unit tests, and both pass. The jar is available as a CI artifact.
 > * **It has not yet been launched in Minecraft.** Every in-game behaviour (mixins, HUD, dashboard, bridge, AutoHunt) still needs testing. Start in single-player.
 
 ## Server rules first
