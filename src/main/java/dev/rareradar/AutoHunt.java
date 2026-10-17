@@ -35,13 +35,8 @@ public final class AutoHunt {
     public static boolean active = false;
     /** true = train mode (battle wild Pokemon for XP/EVs), false = hunt mode (catch rares). */
     public static boolean train = false;
-    private static final int LEVEL_WINDOW = 6;
-    private static final double TRAIN_RANGE = 6.0;
-    private static final float MIN_LEAD_HP = 0.4f;
     private static int battleDelay = 0;
     private static Set<String> evSpecies = Set.of();
-    private static final double SCAN_RANGE = 160.0;
-    private static final double THROW_RANGE = 9.0;
     private static final int THROW_COOLDOWN = 50; // ticks between throws
     private static final float MAX_TURN = 7.0f;   // degrees per tick, keeps turning smooth
     private static final List<String> BALL_PREFERENCE =
@@ -133,7 +128,7 @@ public final class AutoHunt {
         Vec3d aim = target.getPos().add(0, target.getHeight() * 0.5, 0);
         double flat = Math.hypot(aim.x - p.getX(), aim.z - p.getZ());
 
-        boolean inRange = flat <= (train ? TRAIN_RANGE : THROW_RANGE) && p.canSee(target);
+        boolean inRange = flat <= (train ? Settings.S.trainRange : Settings.S.throwRange) && p.canSee(target);
         if (inRange) {
             releaseKeys(client);
             faceToward(p, eye, aim);
@@ -161,7 +156,7 @@ public final class AutoHunt {
 
     private static PokemonEntity nearestRare(MinecraftClient client) {
         PokemonEntity best = null;
-        double bestD = SCAN_RANGE * SCAN_RANGE;
+        double bestD = (double) Settings.S.scanRange * Settings.S.scanRange;
         for (Entity e : client.world.getEntities()) {
             if (e instanceof PokemonEntity pe && Rarity.of(pe) != null && !pe.isBattling()) {
                 double d = pe.squaredDistanceTo(client.player);
@@ -192,7 +187,7 @@ public final class AutoHunt {
 
     private static boolean leadOk() {
         Pokemon pk = lead();
-        return pk != null && pk.getCurrentHealth() >= pk.getMaxHealth() * MIN_LEAD_HP;
+        return pk != null && pk.getCurrentHealth() >= pk.getMaxHealth() * (Settings.S.minLeadHpPercent / 100.0);
     }
 
     private static PokemonEntity bestTrainTarget(MinecraftClient client) {
@@ -204,10 +199,10 @@ public final class AutoHunt {
             if (!(e instanceof PokemonEntity pe) || pe.getOwnerUuid() != null || pe.isBattling()) continue;
             int l = pe.getPokemon().getLevel();
             boolean evHit = evSpecies.contains(pe.getPokemon().getSpecies().getName().toLowerCase());
-            if (!evSpecies.isEmpty() && !evHit && Math.abs(l - lvl) > LEVEL_WINDOW) continue;
-            if (evSpecies.isEmpty() && Math.abs(l - lvl) > LEVEL_WINDOW) continue;
+            if (!evSpecies.isEmpty() && !evHit && Math.abs(l - lvl) > Settings.S.levelWindow) continue;
+            if (evSpecies.isEmpty() && Math.abs(l - lvl) > Settings.S.levelWindow) continue;
             double score = pe.distanceTo(client.player) - (evHit ? 40 : 0);
-            if (pe.distanceTo(client.player) > SCAN_RANGE) continue;
+            if (pe.distanceTo(client.player) > Settings.S.scanRange) continue;
             if (score < bestScore) { bestScore = score; best = pe; }
         }
         return best;

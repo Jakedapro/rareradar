@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class EntityMixin {
     @Inject(method = "getTeamColorValue", at = @At("HEAD"), cancellable = true)
     private void rareradar$color(CallbackInfoReturnable<Integer> cir) {
-        if (RareRadarClient.enabled && (Object) this instanceof PokemonEntity pe) {
+        if (RareRadarClient.enabled && dev.rareradar.Settings.S.outlines && (Object) this instanceof PokemonEntity pe) {
             Rarity r = Rarity.of(pe);
             if (r != null) cir.setReturnValue(r.color);
         }

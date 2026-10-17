@@ -27,11 +27,12 @@ public enum Rarity {
         if (p == null || entity.getOwnerUuid() != null) return null;
         Set<String> labels = new HashSet<>(p.getSpecies().getLabels());
         labels.addAll(p.getForm().getLabels());
-        if (labels.contains("mythical")) return MYTHICAL;
-        if (labels.contains("legendary")) return LEGENDARY;
-        if (labels.contains("ultra_beast")) return ULTRA_BEAST;
-        if (labels.contains("paradox")) return PARADOX;
-        if (p.getShiny()) return SHINY;
+        Settings c = Settings.S;
+        if (c.mythical && labels.contains("mythical")) return MYTHICAL;
+        if (c.legendary && labels.contains("legendary")) return LEGENDARY;
+        if (c.ultraBeast && labels.contains("ultra_beast")) return ULTRA_BEAST;
+        if (c.paradox && labels.contains("paradox")) return PARADOX;
+        if (c.shiny && p.getShiny()) return SHINY;
         return null;
     }
 }
