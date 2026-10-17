@@ -59,6 +59,7 @@ final class Tabs {
     static List<ProfitEngine.Option> options() {
         Galaxy g = g();
         List<ProfitEngine.Option> opts = new ArrayList<>(ProfitEngine.measured(g.activities.all(), now() - 14L * 86_400_000L, true));
+        huntingOptions(opts);
         List<HuntOptimizer.Ranked> ranked = HuntOptimizer.rank(g.hunts.active(now()), huntInputs());
         if (!ranked.isEmpty() && ranked.get(0).valuePerHour().known()) {
             HuntOptimizer.Ranked r = ranked.get(0);
@@ -66,6 +67,41 @@ final class Tabs {
                     r.valuePerHour(), "Estimated from encounter rates and your entered reward: " + r.explanation(), false));
         }
         return opts;
+    }
+
+    /** Knowledge-free, data-driven hunting estimates from the user's encounter log and market data (not measured profit). */
+    static void huntingOptions(List<ProfitEngine.Option> opts) {
+        Galaxy g = g();
+        double hours = g.exposure.totalHours();
+        if (hours < 0.25) return;
+        Map<String, Long> all = new HashMap<>(), legendary = new HashMap<>();
+        long enc = 0, shinies = 0;
+        for (EncounterRecord r : g.encounters.all()) {
+            all.merge(r.species, 1L, Long::sum);
+            enc++;
+            if (r.shiny) shinies++;
+            if (r.rarity != null && (r.rarity.equals("Legendary") || r.rarity.equals("Mythical"))) legendary.merge(r.species, 1L, Long::sum);
+        }
+        long now = now();
+        var v = g.valuator;
+        java.util.function.Function<Map<String, Long>, List<dev.rareradar.core.hunting.HuntingValueEstimator.SpeciesCount>> toList = m -> {
+            List<dev.rareradar.core.hunting.HuntingValueEstimator.SpeciesCount> l = new ArrayList<>();
+            m.forEach((k, c) -> l.add(new dev.rareradar.core.hunting.HuntingValueEstimator.SpeciesCount(k, c)));
+            return l;
+        };
+        java.util.function.ToDoubleFunction<String> base = sp -> { var e = v.bucketValue(new MarketKey(sp, null, false), now); return e.known() ? e.value() : Double.NaN; };
+        java.util.function.ToDoubleFunction<String> shinyVal = sp -> { var e = v.bucketValue(new MarketKey(sp, null, true), now); return e.known() ? e.value() : Double.NaN; };
+        double pShiny = dev.rareradar.core.hunting.HuntingValueEstimator.shinyProbability(shinies, enc,
+                dev.rareradar.core.hunting.HuntingValueEstimator.COBBLEMON_DEFAULT_SHINY_RATE, dev.rareradar.core.hunting.HuntingValueEstimator.COBBLEMON_DEFAULT_SHINY_RATE)[0];
+        add(opts, "Catching everything seen (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, 1, base, Double.NaN));
+        add(opts, "Shiny hunting (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, pShiny, shinyVal, Double.NaN));
+        if (!legendary.isEmpty()) add(opts, "Legendary/mythical hunting (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(legendary), hours, 1, base, Double.NaN));
+    }
+
+    private static void add(List<ProfitEngine.Option> opts, String name, dev.rareradar.core.hunting.HuntingValueEstimator.Result r) {
+        if (!r.perHour().known()) return;
+        opts.add(new ProfitEngine.Option(name, Activity.RARE_HUNTING, r.perHour(),
+                String.format(Locale.ROOT, "%s; %.0f%% of encounters valued; %s", r.perHour().basis(), r.coverage() * 100, String.join("; ", r.assumptions())), false));
     }
 
     static Estimate inventoryValue() {
