@@ -44,6 +44,9 @@ public final class V3Config {
     public Set<String> privateServerAllowlist = new LinkedHashSet<>();
     public boolean allowProtectedBalls = false;
 
+    /** Manually recorded Vote Party window (0 = none). Duration/multiplier are the wiki's reported defaults. */
+    public dev.rareradar.core.daily.VoteParty voteParty = new dev.rareradar.core.daily.VoteParty();
+
     public RarityConfig rarity = new RarityConfig();
     public ValuationConfig valuation = new ValuationConfig();
     public BallPolicy balls = new BallPolicy();
@@ -74,6 +77,8 @@ public final class V3Config {
         if (daily == null) daily = new DailyChecklist();
         if (resources == null) resources = ResourceBook.defaults();
         if (mega == null) mega = new MegaPlanner();
+        if (voteParty == null) voteParty = new dev.rareradar.core.daily.VoteParty();
+        if (!(voteParty.durationMinutes > 0) || voteParty.durationMinutes > 600) voteParty.durationMinutes = 30;
         rarity.sanitize();
         valuation.sanitize();
         safety.sanitize();

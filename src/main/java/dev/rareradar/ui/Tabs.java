@@ -101,7 +101,13 @@ final class Tabs {
                 s.button(cx, cy, bw, label, () -> { daily.toggle(item, today); g().saveConfig(); s.rebuild(); });
                 col++;
             }
-            return ((col + 2) / 3) * 20;
+            int rowsUsed = ((col + 2) / 3) * 20;
+            s.button(x, y + rowsUsed, 180, "Vote Party started now", () -> {
+                g().cfg.voteParty.start = now();
+                g().saveConfig();
+                s.flash("§aVote Party window recorded (" + Math.round(g().cfg.voteParty.durationMinutes) + " min)");
+            });
+            return rowsUsed + 22;
         }
 
         public void lines(List<Line> out) {
@@ -110,12 +116,39 @@ final class Tabs {
             out.add(Line.dim("GALAXY DAILY CHECKLIST: " + g.cfg.daily.remaining(today) + " item(s) left today (reminders only — RareRadar never runs commands)"));
             int[] vp = CobbleGalaxyBridge.voteParty;
             if (vp != null) out.add(Line.t("Vote Party progress: " + vp[0] + " / " + vp[1] + " (from the /vote menu)"));
+            voteParty(out, g);
             out.add(Line.blank());
             DashboardText.session(out, g.sessions.current(), inventoryValue());
             out.add(Line.blank());
             DashboardText.recommendation(out, ProfitEngine.recommend(options()));
             for (String w : g.cfg.resources.warnings()) out.add(Line.warn("⚠ " + w));
         }
+    }
+
+    /** Vote Party window efficiency: shinies seen during the window vs the user's own baseline shiny rate. */
+    static void voteParty(List<Line> out, Galaxy g) {
+        var vp = g.cfg.voteParty;
+        if (vp.start <= 0) return;
+        long end = vp.start + (long) (vp.durationMinutes * 60_000);
+        vp.encounters = 0;
+        vp.shinies = 0;
+        for (EncounterRecord r : g.encounters.since(vp.start)) if (r.ts <= end) { vp.encounters++; if (r.shiny) vp.shinies++; }
+        double observedMin = Math.min(vp.durationMinutes, Math.max(0, (now() - vp.start) / 60_000.0));
+        if (vp.active(now())) out.add(Line.good(String.format(Locale.ROOT, "VOTE PARTY ACTIVE — %.0f min left (wiki: ×%.1f shiny rate)", vp.minutesLeft(now()), vp.reportedMultiplier)));
+        else if (now() - end > 24 * 3600_000L) return;
+        double hours = g.exposure.totalHours();
+        long allShiny = 0;
+        for (EncounterRecord r : g.encounters.all()) if (r.shiny && (r.ts < vp.start || r.ts > end)) allShiny++;
+        double baseline = hours > 0 ? allShiny / hours : Double.NaN;
+        double mult = vp.observedMultiplier(observedMin, baseline);
+        out.add(Line.t(String.format(Locale.ROOT, "Vote Party window: %d encounters, %d shinies · observed shiny rate %s · vs your baseline %s",
+                vp.encounters, vp.shinies, rateText(vp.shinyRate(observedMin)),
+                Double.isFinite(mult) ? String.format(Locale.ROOT, "×%.1f", mult) : "unknown")));
+        out.add(Line.dim("A handful of shinies is a tiny sample: treat the observed multiplier as very rough."));
+    }
+
+    static String rateText(Estimate e) {
+        return e.known() ? String.format(Locale.ROOT, "%.1f/h (%.1f–%.1f, %s)", e.value(), e.low(), e.high(), e.confidence().label) : "unknown";
     }
 
     // =================================================================== Radar
