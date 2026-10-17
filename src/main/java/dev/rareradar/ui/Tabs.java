@@ -453,9 +453,14 @@ final class Tabs {
             s.button(x, y, 160, "Sync from Cobblemon dex", () -> {
                 DexPlanner d = g().dex;
                 Set<String> owned = CobblemonCompat.dexOwnedSpecies();
-                if (d.universe.isEmpty()) s.flash("§eOwned species synced; the full list of species comes from the CobbleGalaxy Dex Rewards menu.");
+                if (d.universe.isEmpty()) {
+                    // Without the server's Dex Rewards list, use every species Cobblemon marks as implemented.
+                    d.universe.addAll(CobblemonCompat.implementedSpecies());
+                    d.source = "Cobblemon client Pokédex + implemented species (CobbleGalaxy's Dex Rewards list may differ)";
+                }
                 d.caught.addAll(owned);
-                if (d.source.equals("none")) d.source = "Cobblemon client Pokédex";
+                d.updatedAt = now();
+                s.flash("§aSynced " + owned.size() + " owned species of " + d.universe.size());
             });
             return 22;
         }

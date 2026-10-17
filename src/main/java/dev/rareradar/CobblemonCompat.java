@@ -127,6 +127,17 @@ public final class CobblemonCompat {
         return out;
     }
 
+    /** Paths of all species Cobblemon marks as implemented (the client receives species data from the server). */
+    public static Set<String> implementedSpecies() {
+        Set<String> out = new TreeSet<>();
+        try {
+            for (var sp : com.cobblemon.mod.common.api.pokemon.PokemonSpecies.getImplemented()) out.add(sp.getResourceIdentifier().getPath());
+        } catch (LinkageError | RuntimeException t) {
+            warnOnce("implementedSpecies", t);
+        }
+        return out;
+    }
+
     /** Ball id ("poke_ball", "master_ball", …) of a stack, or null if it is not a Poké Ball. */
     public static String ballId(ItemStack s) {
         try {
