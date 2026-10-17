@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.8-SNAPSHOT'
+    id 'fabric-loom' version '1.11-SNAPSHOT'
 }
 version = project.mod_version
 group = 'dev.rareradar'
@@ -25,3 +25,5 @@ processResources {
 sourceSets { main { java { srcDir 'core/src/main/java' } } }
 tasks.withType(JavaCompile).configureEach { options.release = 21 }
 java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
+// Remap the compiled jar explicitly (with Loom 1.8 on Gradle 8.14 remapJar produced an empty jar).
+remapJar { inputFile = jar.archiveFile }
