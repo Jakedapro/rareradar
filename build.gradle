@@ -5,6 +5,7 @@ version = project.mod_version
 group = 'dev.rareradar'
 base { archivesName = 'rareradar' }
 repositories {
+    mavenCentral()
     flatDir { dirs 'libs' }
 }
 dependencies {
@@ -13,6 +14,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modCompileOnly name: 'cobblemon'
+    compileOnly 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
 }
 processResources {
     inputs.property 'version', project.version

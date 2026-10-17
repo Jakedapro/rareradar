@@ -85,7 +85,6 @@ public final class AutoHunt {
     }
 
     public static void toggle(MinecraftClient client) {
-        if (!active && !train) { /* plain hunt */ }
         active = !active;
         if (!active && train) train = false;
         RareRadarClient.LOG.info("Auto {} {}", train ? "train" : "hunt", active ? "ON" : "OFF");
