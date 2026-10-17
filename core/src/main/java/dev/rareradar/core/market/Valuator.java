@@ -24,7 +24,7 @@ public final class Valuator {
 
     /** Market estimate for one bucket from its own observations (recent window when enough data). */
     public Estimate bucketValue(MarketKey k, long now) {
-        List<PriceObservation> obs = recent(db.of(k), now);
+        List<PriceObservation> obs = recent(Listings.distinct(db.of(k)), now);
         if (obs.isEmpty()) return Estimate.unknown("no observations for " + k);
         MarketStats s = MarketStats.compute(k, obs, now);
         double floor = s.sts() > 0 ? s.stsMedian() : Double.NaN;

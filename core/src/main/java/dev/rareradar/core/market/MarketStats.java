@@ -21,7 +21,8 @@ public record MarketStats(MarketKey key,
 
     static final double WEEK_MS = 7 * 24 * 3600_000.0;
 
-    public static MarketStats compute(MarketKey key, List<PriceObservation> obs, long now) {
+    public static MarketStats compute(MarketKey key, List<PriceObservation> obsIn, long now) {
+        List<PriceObservation> obs = Listings.distinct(obsIn);
         List<Double> list = new ArrayList<>(), sale = new ArrayList<>(), st = new ArrayList<>();
         List<double[]> saleTs = new ArrayList<>(), listTs = new ArrayList<>();
         long first = Long.MAX_VALUE, last = Long.MIN_VALUE;

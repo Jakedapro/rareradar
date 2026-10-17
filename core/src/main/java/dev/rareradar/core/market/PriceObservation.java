@@ -66,5 +66,14 @@ public final class PriceObservation {
         if (id == null || id.isBlank()) id = UUID.randomUUID().toString();
         if (source == null) source = Source.MANUAL;
         if (note == null) note = "";
+        // Cobblemon ids such as "cobblemon.ability.hugepower" / "cobblemon:jolly" → "hugepower" / "jolly"
+        ability = lastSegment(ability);
+        nature = lastSegment(nature);
+    }
+
+    static String lastSegment(String s) {
+        if (s == null || s.isBlank()) return null;
+        int i = Math.max(s.lastIndexOf('.'), s.lastIndexOf(':'));
+        return (i >= 0 ? s.substring(i + 1) : s).trim().toLowerCase(java.util.Locale.ROOT);
     }
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.0-alpha.3 — data quality from the first live capture
+
+The first live capture on CobbleGalaxy (alpha.2) recorded 784 asking prices in about 4 minutes: 728 from the GTS screen and 56 from chat announcements. All were correctly classified as listings, with 0 sales.
+
+### Fixed
+- **Double counting:**
+  - 15 chat announcements were the same listing as a GTS-screen card, and 2 were re-announcements.
+  - Statistics and valuation now count a chat listing only if no listing with the same Pokémon, form, shiny state and price exists within 24 h. The GTS-screen card, which carries IVs and nature, is kept in preference.
+  - Distinct screen cards are never merged.
+  - This applies to already-stored data without rewriting files: on the exported real data, 784 → 767 listings.
+- **Ids normalised:** abilities and natures stored as Cobblemon ids (`cobblemon.ability.hugepower`) are now shown as `hugepower`.
+
 ## 3.0.0-alpha.2 — GTS price capture repair
 
 ### Why no prices were saved in alpha.1
