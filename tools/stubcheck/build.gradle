@@ -1,0 +1,19 @@
+// Type-checks the Minecraft-facing mod sources WITHOUT Minecraft, against hand-written API stubs whose signatures
+// were verified against Yarn 1.21.1 mappings, Cobblemon 1.8.2 sources and Fabric API 1.21.1 sources.
+// Use it only where Loom cannot run (e.g. no access to maven.fabricmc.net):
+//     gradle -p tools/stubcheck compileJava
+// Passing proves only that names/types line up with the stubs; it is NOT a build of the mod.
+plugins { id 'java' }
+repositories { mavenCentral() }
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'it.unimi.dsi:fastutil:8.5.12'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'org.lwjgl:lwjgl:3.3.3'
+    implementation 'org.lwjgl:lwjgl-glfw:3.3.3'
+}
+sourceSets { main { java { srcDirs = ['stubs', '../../src/main/java', '../../core/src/main/java'] } } }
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.compilerArgs += ['-proc:none', '-Xlint:all,-serial,-processing,-rawtypes,-unchecked,-try']
+}

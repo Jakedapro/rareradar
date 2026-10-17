@@ -34,6 +34,8 @@ gradle build
 # 3. Core logic tests (no Minecraft needed):
 gradle -p core test
 gradle -p core test -Pbench --tests '*CoreBenchmark*'   # micro-benchmarks
+# Without access to the Fabric maven only: type-check the mod sources against verified API stubs
+gradle -p tools/stubcheck compileJava
 ```
 
 ## Keys (all rebindable under Controls → Rare Radar)
