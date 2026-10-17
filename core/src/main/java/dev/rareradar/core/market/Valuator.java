@@ -12,11 +12,15 @@ import java.util.List;
 public final class Valuator {
     private final MarketDatabase db;
     private final ValuationConfig cfg;
+    private dev.rareradar.core.ml.PriceModel model;
 
     public Valuator(MarketDatabase db, ValuationConfig cfg) {
         this.db = db;
         this.cfg = cfg;
     }
+
+    /** Optional learned model; consulted only when it passed cross-validation and bucket data is weak. */
+    public void setModel(dev.rareradar.core.ml.PriceModel m) { this.model = m; }
 
     /** Market estimate for one bucket from its own observations (recent window when enough data). */
     public Estimate bucketValue(MarketKey k, long now) {
@@ -147,6 +151,14 @@ public final class Valuator {
         } else {
             method = "insufficient data";
             total = Estimate.unknown("no usable market data for " + exact + "; add GTS observations");
+        }
+        if (model != null && model.usable() && (!total.known() || total.confidence() == Confidence.LOW)) {
+            Estimate learned = model.predict(o);
+            if (learned.known()) {
+                notes.add("Heuristic estimate was " + (total.known() ? "low-confidence" : "unavailable") + "; using the learned model (" + model.metrics().summary() + ")");
+                total = learned;
+                method = "learned model";
+            }
         }
         if (!direct.known() && direct.basis() != null) notes.add(direct.basis());
         if (o.ivs == null) notes.add("IVs unknown (not visible to the client for wild Pokémon)");
