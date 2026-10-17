@@ -928,6 +928,7 @@ final class Tabs {
             List<String> rares = new ArrayList<>();
             for (String id : here) { var sp = kb.species(id); if (sp != null && (sp.isLegendary() || sp.isMythical())) rares.add(sp.name()); }
             if (!rares.isEmpty()) out.add(Line.good("Legendary/mythical spawn entries for this biome: " + String.join(", ", rares)));
+            likelyHere(out, kb);
             out.add(Line.blank());
             ev(out, g, kb);
         }
@@ -943,6 +944,7 @@ final class Tabs {
                     + " · exp group " + sp.experienceGroup() + " · egg groups " + sp.eggGroups()));
             out.add(Line.t("Abilities: " + sp.abilities() + (sp.forms().isEmpty() ? "" : " · forms: " + sp.forms().stream().map(f -> f.name()).toList())));
             capture(out, sp, kb.spawnsFor(sp.id()));
+            bestBiomes(out, kb, sp);
             for (var e : kb.evolutionsFrom(sp.id())) out.add(Line.t("Evolves → " + e.result() + " (" + e.variant() + ") " + (e.requirementsJson() == null ? "" : e.requirementsJson())));
             var spawns = kb.spawnsFor(sp.id());
             out.add(Line.h("Spawn entries (" + spawns.size() + ") — raw weights, not probabilities"));
@@ -952,6 +954,53 @@ final class Tabs {
                         s.biomes(), s.conditionJson() == null ? "" : " · " + (s.conditionJson().length() > 90 ? s.conditionJson().substring(0, 90) + "…" : s.conditionJson()))));
             }
             out.add(Line.dim("  source: " + sp.sourceFile()));
+        }
+
+        /** Model share of natural spawns at the player's current biome, time, sky, light, rain and height. */
+        private static void likelyHere(List<Line> out, dev.rareradar.core.knowledge.KnowledgeBase kb) {
+            var c = RadarScanner.spawnContext;
+            if (c == null) return;
+            for (String type : List.of("grounded", "submerged", "surface")) {
+                var ctx = new dev.rareradar.core.knowledge.SpawnProbability.Context(type, c.timeTick(), c.canSeeSky(), c.skyLight(), c.raining(), c.y(), false);
+                var shares = dev.rareradar.core.knowledge.SpawnProbability.inBiome(kb, RadarScanner.currentBiome, RadarScanner.currentBiomeTags, ctx);
+                if (shares.isEmpty()) continue;
+                StringBuilder b = new StringBuilder();
+                for (int i = 0; i < Math.min(10, shares.size()); i++) {
+                    var s = shares.get(i);
+                    var sp = kb.species(s.speciesId());
+                    b.append(i == 0 ? "" : ", ").append(sp == null ? s.speciesId() : sp.name())
+                            .append(String.format(Locale.ROOT, " %.1f%%", 100 * s.share()));
+                }
+                out.add(Line.t("Most likely " + type + " spawns now: " + b + (shares.size() > 10 ? " … (" + shares.size() + " species)" : "")));
+            }
+            out.add(Line.dim(String.format(Locale.ROOT, "  Model of Cobblemon 1.8.2 spawn buckets/weights at time %d, sky %s, sky light %d, rain %s, y %d; structure/lure/snack spawns excluded. Not measured — server settings may differ.",
+                    c.timeTick(), c.canSeeSky(), c.skyLight(), c.raining(), c.y())));
+        }
+
+        /** Biome rankings take ~0.1–0.3 s, so they are computed once per species off the render thread. */
+        private static final Map<String, java.util.concurrent.CompletableFuture<List<Line>>> BIOME_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+        /** Best biomes for a species by modelled share of spawns (daytime/night, open sky, clear weather). */
+        private static void bestBiomes(List<Line> out, dev.rareradar.core.knowledge.KnowledgeBase kb, dev.rareradar.core.knowledge.Species sp) {
+            if (BIOME_CACHE.size() > 64) BIOME_CACHE.clear();
+            var f = BIOME_CACHE.computeIfAbsent(sp.id(), id -> java.util.concurrent.CompletableFuture.supplyAsync(() -> rankBiomes(kb, sp)));
+            out.add(Line.h("Best biomes (model share of spawns, open sky, clear weather; structure/lure spawns excluded)"));
+            if (!f.isDone()) { out.add(Line.dim("  computing…")); return; }
+            try { out.addAll(f.join()); }
+            catch (RuntimeException e) { out.add(Line.warn("  biome ranking failed: " + e)); }
+        }
+
+        private static List<Line> rankBiomes(dev.rareradar.core.knowledge.KnowledgeBase kb, dev.rareradar.core.knowledge.Species sp) {
+            List<Line> out = new ArrayList<>();
+            for (int tick : new int[]{dev.rareradar.core.knowledge.SpawnProbability.NOON, dev.rareradar.core.knowledge.SpawnProbability.MIDNIGHT}) {
+                String when = tick == dev.rareradar.core.knowledge.SpawnProbability.NOON ? "day  " : "night";
+                for (var r : dev.rareradar.core.knowledge.SpawnProbability.bestBiomes(kb, sp.id(), dev.rareradar.core.knowledge.SpawnProbability.Context.openSky(null, tick), 5))
+                    out.add(Line.t(String.format(Locale.ROOT, "  %s %-34s %-9s %.2f%% (≈1 in %.0f spawns)%s", when, r.biomeId(), r.positionType(),
+                            100 * r.share().share(), 1 / r.share().share(), r.share().viaHerdOnly() ? " · herd only" : "")));
+            }
+            if (out.isEmpty()) out.add(Line.dim("  No ordinary natural spawn found — it may need a structure, lure, Poké Snack, fishing or a special event."));
+            else out.add(Line.dim("  Includes modded biomes from Cobblemon's tags that your server may not have. Model, not measured."));
+            return out;
         }
 
         /** Per-throw capture chance from Cobblemon 1.8.2's formula under stated scenarios (no live HP/status is read). */

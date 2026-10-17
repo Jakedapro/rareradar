@@ -60,6 +60,8 @@ public final class RadarScanner {
     public static TimeBucket currentTime = TimeBucket.UNKNOWN;
     /** Tags of the current biome ("#namespace:path"), refreshed when the biome changes. */
     public static java.util.Set<String> currentBiomeTags = java.util.Set.of();
+    /** Live spawn-condition context at the player (for the knowledge-base spawn model); null until the first scan. */
+    public static volatile dev.rareradar.core.knowledge.SpawnProbability.Context spawnContext;
     private static int teleportNoticeIn = -1;
 
     // Benchmarks (exposed on the dashboard)
@@ -113,6 +115,9 @@ public final class RadarScanner {
         }
         currentBiome = biome;
         currentTime = TimeBucket.of(client.world.getTimeOfDay());
+        spawnContext = new dev.rareradar.core.knowledge.SpawnProbability.Context(null, (int) Math.floorMod(client.world.getTimeOfDay(), 24000L),
+                client.world.isSkyVisible(bp.up()), client.world.getLightLevel(net.minecraft.world.LightType.SKY, bp.up()),
+                client.world.isRaining(), bp.getY(), false);
         g.exposure.add(currentBiome, currentTime, g.cfg.scanIntervalTicks / 20.0);
         g.sessions.touch(now);
 

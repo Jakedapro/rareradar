@@ -94,7 +94,7 @@ public class DashboardScreen extends Screen {
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
-        ctx.drawCenteredTextWithShadow(textRenderer, "§lRARERADAR V3§r  ·  GALAXY PROFIT ENGINE", width / 2, 8, 0x8FD3FF);
+        ctx.drawCenteredTextWithShadow(textRenderer, "§lRARERADAR V4§r  ·  PROJECT AUTONOMY", width / 2, 8, 0x8FD3FF);
         if (--refreshIn <= 0) {
             lines.clear();
             try { tabs.get(tab).lines(lines); }

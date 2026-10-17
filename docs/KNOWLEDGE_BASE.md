@@ -192,3 +192,26 @@ after checking them against the new source files. Bump `schemaVersion` (generato
 * Vanilla and `#c:` biome tags are not defined in this dataset; pass the biome's runtime tags to resolve them.
 * Wiki pages (wiki.cobblemon.com and others) were not retrieved; no data comes from them.
 * `dex_entries/`, behaviour, drops, riding and model/lighting data are not included.
+
+## Spawn probability model (`SpawnProbability`)
+
+This follows Cobblemon 1.8.2's selection (`Spawner.chooseBucket`, `FlatSpawnablePositionWeightedSelector`, `data/cobblemon/spawning/best-spawner-config.json`):
+
+1. **Choose a bucket.** A bucket is drawn by `worldBuckets` weights: common 94, uncommon 5, rare 0.5, ultra-rare 0.2, boss 0.3. For the `fishing` position type, `fishingBuckets` is used instead.
+   - The draw is over buckets present anywhere in the spawn pool, not only those with a local candidate. A drawn bucket with nothing eligible at that spot spawns nothing.
+2. **Choose an entry.** Within the bucket, the entry is a weighted choice; `empty` entries take weight but spawn nothing.
+
+`share` is the species' fraction of the Pokémon that actually spawn for one position type. `perAttempt` also counts the misses.
+
+**Evaluated:**
+- biome lists, including preset biomes
+- position type and `timeRange`
+- `canSeeSky` and the sky-light bounds
+- `isRaining` and Y bounds
+- pool `enabled` and required mods
+
+**Excluded by default** (special location or item): structures, nearby/base-block requirements (except the ordinary terrain presets `natural`, `wild`, `water`, `foliage`, `treetop`), slime chunks, Poké Snacks, lures, bait, rods, moon phase, X/Z bounds, thunder, and the structure presets.
+
+**Not evaluated:** weight multipliers, block light, fluid checks, and any server overrides.
+
+Herd entries split their weight evenly across their herd species. The results are a model and have not been measured.
