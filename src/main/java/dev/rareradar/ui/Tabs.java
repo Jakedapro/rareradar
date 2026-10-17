@@ -154,11 +154,40 @@ final class Tabs {
             if (vp != null) out.add(Line.t("Vote Party progress: " + vp[0] + " / " + vp[1] + " (from the /vote menu)"));
             voteParty(out, g);
             out.add(Line.blank());
+            atAGlance(out, g);
+            out.add(Line.blank());
             DashboardText.session(out, g.sessions.current(), inventoryValue());
             out.add(Line.blank());
             DashboardText.recommendation(out, ProfitEngine.recommend(options()));
             for (String w : g.cfg.resources.warnings()) out.add(Line.warn("⚠ " + w));
         }
+    }
+
+    /** Unified summary: hunting, trading and earnings from recorded data only (unknowns stay unknown). */
+    static void atAGlance(List<Line> out, Galaxy g) {
+        long now = now();
+        var l = dev.rareradar.core.stats.Reports.lifetime(g.sessions.allIncludingCurrent(), now);
+        var all = l.all();
+        out.add(Line.h("AT A GLANCE — hunting · trading · earnings (from your recorded sessions and logs)"));
+        double expectedShinies = all.encountered() / g.cfg.shinyRate;
+        out.add(Line.t(String.format(Locale.ROOT, "Hunting:  %.1f h over %d sessions · %d encounters · %d shiny (%.2f expected at 1/%.0f) · %d caught · %s balls/catch · %d active hunts",
+                all.hours(), all.sessions(), all.encountered(), all.shiny(), expectedShinies, g.cfg.shinyRate, all.caught(),
+                Double.isFinite(l.ballsPerCatch()) ? String.format(Locale.ROOT, "%.1f", l.ballsPerCatch()) : "?", g.hunts.active(now).size())));
+        int listings = 0, sales = 0, sts = 0;
+        for (var p : g.market.all()) switch (p.kind) { case LISTING -> listings++; case SALE, PURCHASE -> sales++; case STS -> sts++; }
+        long under = g.opportunities.marketWide(now).stream().filter(o -> o.type() == dev.rareradar.core.market.Opportunity.Type.POTENTIALLY_UNDERVALUED).count();
+        long gtsBetter = dev.rareradar.core.market.SellChannelAdvisor.compareAll(g.market, g.cfg.gtsFeePercent, now).stream()
+                .filter(c -> c.verdict() == dev.rareradar.core.market.SellChannelAdvisor.Verdict.GTS).count();
+        out.add(Line.t(String.format(Locale.ROOT, "Trading:  %d asking prices · %d confirmed sales · %d STS payouts · %d possibly underpriced listings · %d species better sold on GTS · mode %s",
+                listings, sales, sts, under, gtsBetter, g.cfg.tradingMode == TradeAssistant.Mode.ASSISTED ? "assisted alerts" : "observe")));
+        if (sales == 0) out.add(Line.dim("          No confirmed sales yet: value estimates rest on asking prices (LOW confidence) and trade alerts stay silent."));
+        double chg = l.profitPerHourChange();
+        out.add(Line.t(String.format(Locale.ROOT, "Earnings: %s realised in total · last 7 days %s/h · previous 7 days %s/h%s",
+                Money.fmt(all.realisedProfit()), Money.fmt(l.last7().profitPerHour()), Money.fmt(l.prev7().profitPerHour()),
+                Double.isFinite(chg) ? String.format(Locale.ROOT, " (%+.0f%%)", 100 * chg) : "")));
+        if (l.best() != null)
+            out.add(Line.dim(String.format(Locale.ROOT, "          Best session: %s/h over %.0f min (%s).", Money.fmt(l.best().realisedProfit() / (l.best().minutes() / 60)),
+                    l.best().minutes(), java.time.Instant.ofEpochMilli(l.best().start).atZone(ZoneId.systemDefault()).toLocalDate())));
     }
 
     /** Vote Party window efficiency: shinies seen during the window vs the user's own baseline shiny rate. */

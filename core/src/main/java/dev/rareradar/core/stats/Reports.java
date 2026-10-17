@@ -42,6 +42,39 @@ public final class Reports {
         return out;
     }
 
+    /**
+     * Lifetime totals plus the last 7 days and the 7 days before, for a "how am I doing" summary.
+     *
+     * @param ballsPerCatch balls thrown per recorded catch over all sessions (NaN without catches)
+     * @param best          session with the highest realised profit per hour among sessions of 10+ minutes, or null
+     */
+    public record Lifetime(Period all, Period last7, Period prev7, int ballsThrown, double ballsPerCatch, SessionRecord best) {
+        /** Relative change of profit/hour, last 7 days vs the 7 before (NaN when either is unknown or zero). */
+        public double profitPerHourChange() {
+            double a = last7.profitPerHour(), b = prev7.profitPerHour();
+            return Double.isFinite(a) && Double.isFinite(b) && b != 0 ? (a - b) / Math.abs(b) : Double.NaN;
+        }
+    }
+
+    public static Lifetime lifetime(Collection<SessionRecord> s, long now) {
+        long week = 7 * 86_400_000L;
+        List<SessionRecord> last = new ArrayList<>(), prev = new ArrayList<>();
+        int balls = 0, caught = 0;
+        SessionRecord best = null;
+        for (SessionRecord r : s) {
+            if (r.start > now - week) last.add(r); else if (r.start > now - 2 * week) prev.add(r);
+            balls += r.ballsThrown; caught += r.caught;
+            if (r.minutes() >= 10 && (best == null || r.realisedProfit() / r.minutes() > best.realisedProfit() / best.minutes())) best = r;
+        }
+        return new Lifetime(total("all", s), total("last 7 days", last), total("previous 7 days", prev), balls,
+                caught > 0 ? (double) balls / caught : Double.NaN, best);
+    }
+
+    private static Period total(String key, Collection<SessionRecord> s) {
+        List<Period> g = group(s, r -> key);
+        return g.isEmpty() ? new Period(key, 0, 0, 0, 0, 0, 0, 0, 0) : g.get(0);
+    }
+
     /** Robust trend (Theil–Sen) of a per-period metric; returns change per period, NaN with fewer than 3 periods. */
     public static double trend(List<Period> periods, java.util.function.ToDoubleFunction<Period> metric) {
         List<double[]> pts = new ArrayList<>();
