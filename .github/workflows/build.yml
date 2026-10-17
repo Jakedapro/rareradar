@@ -38,7 +38,18 @@ jobs:
           test -n "$url" && test "$url" != "null"
           curl -fsSL "$url" -o libs/cobblemon.jar
       - name: Build mod
-        run: gradle build
+        run: gradle build --console=plain 2>&1 | tee build.log
+      - name: Diagnostics (task outcomes and outputs, as one annotation)
+        if: always()
+        run: |
+          {
+            echo "TASKS:"; grep -E '^> Task' build.log || true
+            echo "FILES:"; find build/libs build/devlibs build/classes -maxdepth 6 -type f 2>/dev/null | head -60
+            for j in build/libs/*.jar build/devlibs/*.jar; do [ -f "$j" ] && { echo "== $j"; unzip -l "$j" | tail -n +1 | head -15; }; done
+            echo "WARN/ERR:"; grep -iE 'warn|error|no-source' build.log | head -30 || true
+          } > diag.txt
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' diag.txt)
+          echo "::notice title=diag::$msg"
       - name: Report jar contents
         run: |
           ls -la build/libs
@@ -51,6 +62,11 @@ jobs:
           name: rareradar-jar
           path: build/libs/
           if-no-files-found: error
+      - name: Refuse to publish an empty jar
+        run: |
+          j=$(ls build/libs/rareradar-*.jar | grep -v sources | head -1)
+          n=$(unzip -l "$j" | grep -c '\.class$' || true)
+          echo "$j has $n classes"; test "$n" -gt 10
       - name: Publish jar to the "dev-latest" pre-release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
