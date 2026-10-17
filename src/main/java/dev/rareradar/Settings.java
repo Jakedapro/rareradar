@@ -21,6 +21,18 @@ public final class Settings {
     public int minLeadHpPercent = 40;  // training stops below this
 
     public static Settings S = new Settings();
+
+    /** Clamps hand-edited values into the ranges the settings screen allows. */
+    void sanitize() {
+        scanRange = clamp(scanRange, 16, 1000);
+        hudRows = clamp(hudRows, 1, 20);
+        throwRange = clamp(throwRange, 3, 20);
+        trainRange = clamp(trainRange, 3, 15);
+        levelWindow = clamp(levelWindow, 0, 30);
+        minLeadHpPercent = clamp(minLeadHpPercent, 10, 100);
+    }
+
+    private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static Path file() { return FabricLoader.getInstance().getConfigDir().resolve("rareradar.json"); }
@@ -32,8 +44,10 @@ public final class Settings {
                 Settings s = GSON.fromJson(Files.readString(f), Settings.class);
                 if (s != null) S = s;
             }
+            S.sanitize();
         } catch (Exception e) {
-            RareRadarClient.LOG.warn("Could not read settings: {}", e.toString());
+            RareRadarClient.LOG.warn("Could not read config/rareradar.json ({}); using defaults", e.toString());
+            S = new Settings();
         }
         RareRadarClient.enabled = S.radarEnabled;
     }

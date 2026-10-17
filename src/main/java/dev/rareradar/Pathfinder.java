@@ -13,6 +13,8 @@ import java.util.*;
 /** Small client-side A* over walkable block positions (walk, 1-block step up, up to 3-block drop, diagonals). */
 public final class Pathfinder {
     private static final int MAX_NODES = 6000;
+    /** Wall-clock budget per search so a single plan can never stall a client tick. */
+    private static final long MAX_NANOS = 4_000_000L;
     private static final int MAX_DROP = 3;
     private static final Set<Block> DANGEROUS = Set.of(
             Blocks.LAVA, Blocks.FIRE, Blocks.SOUL_FIRE, Blocks.MAGMA_BLOCK, Blocks.CACTUS,
@@ -29,6 +31,7 @@ public final class Pathfinder {
 
     /** Path to within {@code reach} blocks (horizontal) of goal; if goal is too far, returns the path to the closest explored node. */
     public static List<BlockPos> find(ClientWorld w, BlockPos start, BlockPos goal, double reach) {
+        if (w == null || start == null || goal == null) return List.of();
         BlockPos s = settle(w, start);
         if (s == null) return List.of();
         PriorityQueue<Node> open = new PriorityQueue<>(Comparator.comparingDouble(n -> n.f));
@@ -38,14 +41,18 @@ public final class Pathfinder {
         best.put(s, 0.0);
         Node closest = first;
         int expanded = 0;
+        long deadline = System.nanoTime() + MAX_NANOS;
         while (!open.isEmpty() && expanded++ < MAX_NODES) {
+            if ((expanded & 127) == 0 && System.nanoTime() > deadline) break; // return best partial path
             Node cur = open.poll();
             if (cur.g > best.getOrDefault(cur.pos, Double.MAX_VALUE)) continue;
             if (h(cur.pos, goal) < h(closest.pos, goal)) closest = cur;
             if (hdist(cur.pos, goal) <= reach && Math.abs(cur.pos.getY() - goal.getY()) <= 3) { closest = cur; break; }
             for (int[] d : DIRS) {
                 boolean diag = d[0] != 0 && d[1] != 0;
-                if (diag && !(passable(w, cur.pos.add(d[0], 0, 0)) && passable(w, cur.pos.add(0, 0, d[1])))) continue;
+                // Diagonal moves need both corner columns clear at foot AND head height (V1 only checked feet).
+                if (diag && !(passable(w, cur.pos.add(d[0], 0, 0)) && passable(w, cur.pos.add(d[0], 1, 0))
+                        && passable(w, cur.pos.add(0, 0, d[1])) && passable(w, cur.pos.add(0, 1, d[1])))) continue;
                 BlockPos next = step(w, cur.pos, d[0], d[1]);
                 if (next == null) continue;
                 double cost = (diag ? 1.414 : 1.0) + Math.abs(next.getY() - cur.pos.getY()) * 0.5
@@ -57,8 +64,9 @@ public final class Pathfinder {
                 }
             }
         }
-        LinkedList<BlockPos> out = new LinkedList<>();
-        for (Node n = closest; n != null; n = n.parent) out.addFirst(n.pos);
+        ArrayList<BlockPos> out = new ArrayList<>();
+        for (Node n = closest; n != null; n = n.parent) out.add(n.pos);
+        Collections.reverse(out);
         return out;
     }
 

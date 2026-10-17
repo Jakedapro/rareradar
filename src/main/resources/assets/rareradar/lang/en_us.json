@@ -2,6 +2,8 @@
   "key.rareradar.toggle": "Toggle Rare Radar",
   "key.rareradar.hunt": "Toggle Auto Hunt",
   "key.rareradar.train": "Toggle Auto Train",
-  "key.rareradar.menu": "Open Rare Radar menu",
-  "key.categories.rareradar": "Rare Radar"
+  "key.rareradar.menu": "Open RareRadar dashboard",
+  "key.categories.rareradar": "Rare Radar",
+  "key.rareradar.settings": "Open classic radar settings",
+  "key.rareradar.stop": "Emergency stop automation"
 }

@@ -59,13 +59,16 @@ public class SettingsScreen extends Screen {
         addDrawableChild(new IntSlider(left, y, COL_W * 2 + 10, "Search range (blocks)", 16, 1000, 8, s.scanRange, v -> s.scanRange = v));
         y += ROW_H + 6;
 
-        addDrawableChild(toggle(left, y, "Shiny", () -> s.shiny, v -> s.shiny = v));
-        addDrawableChild(toggle(right, y, "Legendary", () -> s.legendary, v -> s.legendary = v));
+        // Tier toggles now drive the V3 rarity engine (config/rareradar/v3.json); the cache is cleared so they apply at once.
+        var r = Galaxy.get().cfg.rarity;
+        addDrawableChild(toggle(left, y, "Shiny", () -> r.shiny, v -> { r.shiny = s.shiny = v; RadarScanner.clear(); }));
+        addDrawableChild(toggle(right, y, "Legendary", () -> r.legendary, v -> { r.legendary = s.legendary = v; RadarScanner.clear(); }));
         y += ROW_H;
-        addDrawableChild(toggle(left, y, "Mythical", () -> s.mythical, v -> s.mythical = v));
-        addDrawableChild(toggle(right, y, "Ultra Beast", () -> s.ultraBeast, v -> s.ultraBeast = v));
+        addDrawableChild(toggle(left, y, "Mythical", () -> r.mythical, v -> { r.mythical = s.mythical = v; RadarScanner.clear(); }));
+        addDrawableChild(toggle(right, y, "Ultra Beast", () -> r.ultraBeast, v -> { r.ultraBeast = s.ultraBeast = v; RadarScanner.clear(); }));
         y += ROW_H;
-        addDrawableChild(toggle(left, y, "Paradox", () -> s.paradox, v -> s.paradox = v));
+        addDrawableChild(toggle(left, y, "Paradox", () -> r.paradox, v -> { r.paradox = s.paradox = v; RadarScanner.clear(); }));
+        addDrawableChild(toggle(right, y, "Watchlist", () -> r.watchlist, v -> { r.watchlist = v; RadarScanner.clear(); }));
         y += ROW_H + 6;
 
         addDrawableChild(new IntSlider(left, y, COL_W, "Throw range", 3, 20, 1, s.throwRange, v -> s.throwRange = v));
@@ -90,5 +93,6 @@ public class SettingsScreen extends Screen {
     @Override
     public void removed() {
         Settings.save();
+        Galaxy.get().saveConfig();
     }
 }

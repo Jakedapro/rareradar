@@ -1,116 +1,129 @@
 package dev.rareradar;
 
-import com.cobblemon.mod.common.entity.pokemon.PokemonEntity;
+import dev.rareradar.core.util.Log;
+import dev.rareradar.ui.DashboardScreen;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RareRadarClient implements ClientModInitializer {
     public static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("RareRadar");
-    public static volatile boolean enabled = true;
+    public static boolean enabled = true;
 
-    private record Hit(PokemonEntity entity, Rarity rarity, double dist) {}
-
-    private static final List<Hit> hits = new ArrayList<>();
-    private static KeyBinding toggleKey;
-    private static KeyBinding huntKey;
-    private static KeyBinding trainKey;
-    private static KeyBinding menuKey;
+    private static KeyBinding toggleKey, huntKey, trainKey, menuKey, settingsKey, stopKey;
+    private static int inventoryTick;
 
     @Override
     public void onInitializeClient() {
-        Settings.load();
-        LOG.info("Rare Radar loaded");
-        toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.rareradar.toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_J, "key.categories.rareradar"));
-
-        huntKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.rareradar.hunt", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, "key.categories.rareradar"));
-
-        trainKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.rareradar.train", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_L, "key.categories.rareradar"));
-
-        menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.rareradar.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_GRAVE_ACCENT, "key.categories.rareradar"));
-
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (menuKey.wasPressed()) {
-                if (client.currentScreen == null) client.setScreen(new SettingsScreen());
+        Log.setSink((level, msg, t) -> {
+            switch (level) {
+                case "ERROR" -> LOG.error(msg, t);
+                case "WARN" -> { if (t == null) LOG.warn(msg); else LOG.warn(msg, t); }
+                default -> LOG.info(msg);
             }
-            while (trainKey.wasPressed()) AutoHunt.toggleTrain(client);
-            while (huntKey.wasPressed()) AutoHunt.toggle(client);
-            while (toggleKey.wasPressed()) {
-                enabled = !enabled;
-                LOG.info("Radar {}", enabled ? "enabled" : "disabled");
-                Settings.save();
-                if (client.player != null) {
-                    client.player.sendMessage(Text.literal("Rare Radar: " + (enabled ? "ON" : "OFF")), true);
-                }
-            }
-            scan(client);
-            AutoHunt.tick(client);
         });
+        Settings.load();
+        Galaxy.init();
+        checkCobblemonVersion();
+        LOG.info("Rare Radar V3 loaded");
 
-        HudRenderCallback.EVENT.register(RareRadarClient::render);
+        toggleKey = key("key.rareradar.toggle", GLFW.GLFW_KEY_J);
+        huntKey = key("key.rareradar.hunt", GLFW.GLFW_KEY_K);
+        trainKey = key("key.rareradar.train", GLFW.GLFW_KEY_L);
+        menuKey = key("key.rareradar.menu", GLFW.GLFW_KEY_GRAVE_ACCENT);
+        settingsKey = key("key.rareradar.settings", GLFW.GLFW_KEY_UNKNOWN);
+        stopKey = key("key.rareradar.stop", GLFW.GLFW_KEY_BACKSPACE);
+
+        ClientTickEvents.END_CLIENT_TICK.register(RareRadarClient::tick);
+        HudRenderCallback.EVENT.register(RadarHud::render);
+
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
+            RadarScanner.clear();
+            String world = client.isInSingleplayer() ? "singleplayer"
+                    : client.getCurrentServerEntry() == null ? "multiplayer" : client.getCurrentServerEntry().address;
+            Galaxy.get().sessions.begin(System.currentTimeMillis(), world);
+        }));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+            AutoHunt.stop(client, "disconnected");
+            RadarScanner.clear();
+            Galaxy g = Galaxy.get();
+            g.sessions.end(System.currentTimeMillis());
+            g.exposure.save();
+            g.saveConfig();
+        }));
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            AutoHunt.stop(client, "game closing");
+            Galaxy g = Galaxy.get();
+            g.sessions.end(System.currentTimeMillis());
+            Settings.save();
+            g.shutdown();
+        });
     }
 
-    private static void scan(MinecraftClient client) {
-        hits.clear();
-        if (!enabled || client.world == null || client.player == null) return;
-        Vec3d me = client.player.getPos();
-        for (var e : client.world.getEntities()) {
-            if (e instanceof PokemonEntity pe && e.squaredDistanceTo(me) <= (double) Settings.S.scanRange * Settings.S.scanRange) {
-                Rarity r = Rarity.of(pe);
-                if (r != null) hits.add(new Hit(pe, r, Math.sqrt(e.squaredDistanceTo(me))));
-            }
-        }
-        hits.sort(Comparator.comparingDouble(Hit::dist));
+    private static KeyBinding key(String id, int code) {
+        return KeyBindingHelper.registerKeyBinding(new KeyBinding(id, InputUtil.Type.KEYSYM, code, "key.categories.rareradar"));
     }
 
-    private static String arrow(MinecraftClient client, PokemonEntity e) {
-        Vec3d d = e.getPos().subtract(client.player.getPos());
-        double target = Math.toDegrees(Math.atan2(-d.x, d.z));
-        double rel = MathHelper.wrapDegrees(target - client.player.getYaw());
-        if (rel > -22.5 && rel <= 22.5) return "↑";
-        if (rel > 22.5 && rel <= 67.5) return "↗";
-        if (rel > 67.5 && rel <= 112.5) return "→";
-        if (rel > 112.5 && rel <= 157.5) return "↘";
-        if (rel > -67.5 && rel <= -22.5) return "↖";
-        if (rel > -112.5 && rel <= -67.5) return "←";
-        if (rel > -157.5 && rel <= -112.5) return "↙";
-        return "↓";
+    private static void tick(MinecraftClient client) {
+        // Emergency stop first, and it works even while a screen is open.
+        while (stopKey.wasPressed()) AutoHunt.stop(client, "emergency stop key");
+        while (menuKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new DashboardScreen());
+        while (settingsKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new SettingsScreen());
+        while (trainKey.wasPressed()) AutoHunt.toggleTrain(client);
+        while (huntKey.wasPressed()) AutoHunt.toggle(client);
+        while (toggleKey.wasPressed()) {
+            enabled = !enabled;
+            LOG.info("Radar {}", enabled ? "enabled" : "disabled");
+            Settings.save();
+            if (client.player != null) client.player.sendMessage(Text.literal("Rare Radar: " + (enabled ? "ON" : "OFF")), true);
+        }
+        try {
+            RadarScanner.tick(client);
+            CobbleGalaxyBridge.tick(client);
+            AutoHunt.tick(client);
+            if (client.player != null && ++inventoryTick % 40 == 0) countInventory(client);
+        } catch (RuntimeException e) {
+            // Fail safe: stop automation, keep the game running, log with stack trace.
+            LOG.error("RareRadar tick failed", e);
+            AutoHunt.stop(client, "internal error (see log)");
+        }
     }
 
-    private static void render(DrawContext ctx, net.minecraft.client.render.RenderTickCounter tick) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!enabled || client.player == null || client.options.hudHidden || !Settings.S.hudList || hits.isEmpty()) return;
-        int x = 6, y = 6;
-        ctx.drawTextWithShadow(client.textRenderer, "Rare Radar", x, y, 0xFFFFFF);
-        y += 11;
-        int shown = 0;
-        for (Hit h : new ArrayList<>(hits)) {
-            if (shown++ >= Settings.S.hudRows) break;
-            String name = h.entity.getPokemon().getSpecies().getName();
-            String line = String.format("%s %s [%s] %dm  (%d, %d, %d)", arrow(client, h.entity), name, h.rarity.label,
-                    (int) h.dist, h.entity.getBlockX(), h.entity.getBlockY(), h.entity.getBlockZ());
-            ctx.drawTextWithShadow(client.textRenderer, line, x, y, h.rarity.color);
-            y += 10;
-        }
-        if (hits.size() > Settings.S.hudRows) {
-            ctx.drawTextWithShadow(client.textRenderer, "+" + (hits.size() - Settings.S.hudRows) + " more", x, y, 0xAAAAAA);
-        }
+    /** Updates resource counts for the tracked items (cheap: 41 slots every 2 seconds). */
+    private static void countInventory(MinecraftClient client) {
+        var book = Galaxy.get().cfg.resources;
+        Map<String, Integer> counts = new HashMap<>();
+        var inv = client.player.getInventory();
+        for (ItemStack s : inv.main) add(counts, s);
+        for (ItemStack s : inv.offHand) add(counts, s);
+        for (var r : book.resources.values()) r.count = counts.getOrDefault(r.id, 0);
+    }
+
+    private static void add(Map<String, Integer> counts, ItemStack s) {
+        if (s.isEmpty()) return;
+        counts.merge(Registries.ITEM.getId(s.getItem()).toString(), s.getCount(), Integer::sum);
+    }
+
+    private static void checkCobblemonVersion() {
+        FabricLoader.getInstance().getModContainer("cobblemon").ifPresent(c -> {
+            String v = c.getMetadata().getVersion().getFriendlyString();
+            if (!v.startsWith("1.8") && !v.startsWith("1.7") && !v.startsWith("1.6"))
+                LOG.warn("RareRadar was written against Cobblemon 1.8.2; found {}. Features that hit API changes disable themselves.", v);
+            else LOG.info("Cobblemon {} detected", v);
+        });
     }
 }

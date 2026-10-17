@@ -1,6 +1,6 @@
 package dev.rareradar.mixin;
 
-import com.cobblemon.mod.common.entity.pokemon.PokemonEntity;
+import dev.rareradar.RadarScanner;
 import dev.rareradar.RareRadarClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class MinecraftClientMixin {
     @Inject(method = "hasOutline", at = @At("HEAD"), cancellable = true)
     private void rareradar$outline(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-        if (RareRadarClient.enabled && dev.rareradar.Settings.S.outlines && entity instanceof PokemonEntity pe && dev.rareradar.Rarity.of(pe) != null) {
+        if (RareRadarClient.enabled && dev.rareradar.Settings.S.outlines && RadarScanner.color(entity.getId()) != -1) {
             cir.setReturnValue(true);
         }
     }
