@@ -112,3 +112,7 @@ From the Cobblemon `1.8.2` sources:
   * Result: **0 errors.** One lint warning (a `@JvmStatic` call through `INSTANCE`) has been fixed.
   * Fabric Loader and Mixin APIs could not be obtained and were stubbed from documentation.
 * **Still outstanding:** a real Loom build, mixin application, and in-game testing of every feature. None of these were possible in this environment.
+* **Real build:** GitHub Actions run 39025887798 (commit `4daecfc`) succeeded.
+  * It ran `gradle build` with Loom against Minecraft 1.21.1, Yarn 1.21.1+build.3 and the Cobblemon 1.8.2 Fabric jar from Modrinth.
+  * It also ran `gradle -p core test`.
+  * This verifies compilation and remapping. In-game behaviour is still untested.

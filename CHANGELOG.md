@@ -3,6 +3,7 @@
 ## 3.0.0-dev — "Galaxy Profit Engine" (unreleased, development build)
 
 ### Added
+- **CI** (GitHub Actions): core tests plus a real Loom build against Cobblemon 1.8.2.
 - **`core/` module**: Minecraft-independent logic with 98 unit tests (`gradle -p core test`).
 - **Rarity engine**: configurable `R = w1·S + w2·L + w3·M + w4·P + w5·D` (a priority score, not a spawn probability). Adds a watchlist with JSON import/export, plus target ranking by watchlist priority and distance-discounted score.
 - **Market database** (append-only JSONL with corruption recovery):
@@ -63,4 +64,4 @@
 - Hand-edited config values were not validated.
 
 ### Known limitations
-- Not yet built with Loom or run in Minecraft (Fabric maven blocked in the development environment). The Minecraft-facing sources pass a javac type-check against stubs verified from Yarn 1.21.1, Cobblemon 1.8.2 and Fabric API sources.
+- Builds with Loom in CI against Cobblemon 1.8.2, but has **not yet been run in Minecraft**.
