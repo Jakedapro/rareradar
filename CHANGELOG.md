@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0-dev — "Galaxy Profit Engine" (unreleased, development build)
+## 3.0.0-alpha.1 — "Galaxy Profit Engine" (unreleased, development build)
 
 ### Added
 - **CI** (GitHub Actions): core tests plus a real Loom build against Cobblemon 1.8.2.

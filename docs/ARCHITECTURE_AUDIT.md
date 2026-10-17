@@ -115,4 +115,7 @@ From the Cobblemon `1.8.2` sources:
 * **Real build:** GitHub Actions run 39025887798 (commit `4daecfc`) succeeded.
   * It ran `gradle build` with Loom against Minecraft 1.21.1, Yarn 1.21.1+build.3 and the Cobblemon 1.8.2 Fabric jar from Modrinth.
   * It also ran `gradle -p core test`.
-  * This verifies compilation and remapping. In-game behaviour is still untested.
+  * Correction: that run compiled the code, but Loom 1.8 on Gradle 8.14 wrote an **empty** remapped jar (manifest only). This was fixed by moving to Loom 1.11 with an explicit `remapJar` input.
+  * CI now refuses to publish a jar with no classes.
+  * The first real jar is `rareradar-3.0.0-alpha.1.jar` (352,884 bytes), published to the `dev-latest` pre-release.
+  * In-game behaviour is still untested.
