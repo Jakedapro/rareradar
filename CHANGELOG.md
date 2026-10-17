@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (after 4.0.0-alpha.1)
+
+### Added
+- **Spawn probability model** (`SpawnProbability`). It follows Cobblemon 1.8.2's bucket-then-weight selection, including the fishing buckets, and evaluates time, sky, sky light, rain and Y. Structure, lure and snack spawns are excluded by default.
+  - Knowledge page: "most likely spawns now" at your live conditions, and the best biomes (day and night) for a looked-up species.
+- **Shiny-hunt planner:** biomes ranked by your measured encounter rate × the species' share.
+  - The share is the model share, updated by your own sightings.
+  - Shows expected hours and the hours to a 50% and 90% chance.
+  - Dry-streak note (memoryless).
+  - `shinyRate` is configurable (default 1/8192).
+- **STS vs GTS:** your logged STS payouts against confirmed GTS sales after your fee, with a rough time per sale. Asking prices never count.
+- **Capture recommendations on the Radar page:** the chance per throw, and expected balls, for the balls in your inventory against each sighted Pokémon (overworld, full HP, no status). Conditional balls are not guessed.
+- **Lifetime statistics** and an **At a glance** block on Overview: hunting, trading and earnings, last 7 days vs the previous 7.
+
 ## 4.0.0-alpha.1 — "Project Autonomy"
 
 ### Added

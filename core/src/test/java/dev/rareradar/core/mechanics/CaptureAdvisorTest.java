@@ -29,4 +29,19 @@ class CaptureAdvisorTest {
         assertTrue(CaptureAdvisor.advise(0, 40, 5).isEmpty());
         assertNull(CaptureAdvisor.cheapestWithin(CaptureAdvisor.advise(3, 80, 70), CaptureAdvisor.Scenario.THROWN_FULL_HP, 2));
     }
+
+    @Test void ownedBallsRankedAndConditionalOnesNotGuessed() {
+        var ctx = BallContext.builder().inBattle(false).level(20).types(java.util.Set.of("bug")).build();
+        var rows = CaptureAdvisor.rankOwned(45, 45, 20, ctx, java.util.List.of("poke_ball", "net_ball", "ultra_ball", "master_ball", "mystery_ball"));
+        assertEquals("master_ball", rows.get(0).ball());
+        assertTrue(rows.get(0).guaranteed());
+        // Net Ball ×3 on a Bug type beats Ultra ×2.
+        assertEquals("net_ball", rows.get(1).ball());
+        assertEquals("ultra_ball", rows.get(2).ball());
+        assertEquals("poke_ball", rows.get(3).ball());
+        assertTrue(Double.isNaN(rows.get(4).probability()));
+        // Without types the Net Ball's condition is unknown, so it is not given a bonus.
+        var noTypes = CaptureAdvisor.rankOwned(45, 45, 20, BallContext.builder().inBattle(false).build(), java.util.List.of("net_ball"));
+        assertFalse(noTypes.get(0).missing().isEmpty());
+    }
 }

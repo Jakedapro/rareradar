@@ -52,4 +52,29 @@ public final class CaptureAdvisor {
             for (Row r : rows) if (r.scenario() == sc && r.ball().equals(id) && r.expectedBalls() <= maxBalls) return r;
         return null;
     }
+
+    /** One owned ball's chance for an overworld throw at a full-HP, status-free target; NaN with {@code missing} when unknown. */
+    public record OwnedBall(String ball, double probability, double expectedBalls, boolean guaranteed, List<String> missing) {}
+
+    /**
+     * Ranks the balls the player holds for an overworld throw at a wild target at full HP with no status (how wild
+     * Pokémon spawn). Pokédex criticals are ignored. Balls whose condition depends on something the context leaves
+     * null are returned last with what is missing, never with a guessed bonus.
+     */
+    public static List<OwnedBall> rankOwned(int catchRate, int baseHp, int level, BallContext ctx, java.util.Collection<String> owned) {
+        List<OwnedBall> out = new ArrayList<>();
+        if (catchRate <= 0 || baseHp <= 0 || level < 1) return out;
+        int maxHp = StatMath.hp(baseHp, 0, 0, level);
+        for (String id : new java.util.LinkedHashSet<>(owned)) {
+            var ball = BallCatalog.get(id);
+            if (ball.isEmpty()) { out.add(new OwnedBall(id, Double.NaN, Double.NaN, false, List.of("unknown ball"))); continue; }
+            CaptureResult r = CaptureMath.evaluate(CaptureInputs.builder().catchRate(catchRate).hp(maxHp, maxHp).level(level)
+                    .status(PersistentStatus.NONE).inBattle(false).ball(ball.get().effect(ctx)).caughtCount(0).build());
+            out.add(r.known() ? new OwnedBall(id, r.captureProbability(), r.expectedBalls(), r.guaranteed(), List.of())
+                    : new OwnedBall(id, Double.NaN, Double.NaN, false, r.missing()));
+        }
+        out.sort(java.util.Comparator.comparing((OwnedBall b) -> Double.isNaN(b.probability()))
+                .thenComparing(java.util.Comparator.comparingDouble(OwnedBall::probability).reversed()));
+        return out;
+    }
 }

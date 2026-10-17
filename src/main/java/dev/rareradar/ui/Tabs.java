@@ -163,6 +163,37 @@ final class Tabs {
         }
     }
 
+    /** Which of the player's balls to throw at a sighted wild Pokémon (overworld, full HP, no status). */
+    static String captureLine(dev.rareradar.core.rarity.PokemonObservation o) {
+        var kb = g().knowledge;
+        var mc = MinecraftClient.getInstance();
+        if (o.level == null || !kb.isLoaded() || mc.player == null || mc.world == null) return null;
+        var sp = kb.species(o.species);
+        if (sp == null) return null;
+        Integer cr = sp.catchRateFor(o.form);
+        var st = sp.baseStatsFor(o.form);
+        if (cr == null || st == null) return null;
+        Set<String> owned = new LinkedHashSet<>();
+        for (var stack : mc.player.getInventory().main) { String id = CobblemonCompat.ballId(stack); if (id != null) owned.add(id); }
+        if (owned.isEmpty()) return "    capture: no Poké Balls in your inventory";
+        Set<String> types = new HashSet<>();
+        for (String t : sp.typesFor(o.form)) if (t != null) types.add(t.toLowerCase(Locale.ROOT));
+        var ctx = dev.rareradar.core.mechanics.BallContext.builder().inBattle(false).level(o.level).types(types)
+                .baseSpeed(st.speed()).ultraBeast(sp.labelsFor(o.form).contains("ultra_beast"))
+                .status(dev.rareradar.core.mechanics.PersistentStatus.NONE).dayTime(mc.world.getTimeOfDay()).build();
+        var rows = dev.rareradar.core.mechanics.CaptureAdvisor.rankOwned(cr, st.hp(), o.level, ctx, owned);
+        StringBuilder b = new StringBuilder("    capture/throw (overworld, full HP, model):");
+        int n = 0;
+        for (var r : rows) {
+            if (n++ >= 3) break;
+            String name = r.ball().replace("_ball", "");
+            if (r.guaranteed()) b.append(" ").append(name).append(" 100%");
+            else if (Double.isNaN(r.probability())) b.append(" ").append(name).append(" ?");
+            else b.append(String.format(Locale.ROOT, " %s %.1f%% (~%.0f)", name, 100 * r.probability(), r.expectedBalls()));
+        }
+        return b.toString();
+    }
+
     /** Unified summary: hunting, trading and earnings from recorded data only (unknowns stay unknown). */
     static void atAGlance(List<Line> out, Galaxy g) {
         long now = now();
@@ -228,6 +259,8 @@ final class Tabs {
                         h.obs.isShiny() ? "(shiny)" : "", h.rarity.qualifies() ? h.rarity.primary().label : "Hunt", (int) h.distance,
                         h.rarity.score(), h.rarity.demandKnown() ? "" : " (demand unknown)")));
                 if (v != null) out.add(Line.dim("    value " + Money.range(v.total()) + " · " + v.method()));
+                String cap = captureLine(h.obs);
+                if (cap != null) out.add(Line.dim(cap));
             }
             if (RadarScanner.hits().isEmpty()) out.add(Line.dim("Nothing qualifying in range. The client only knows Pokémon the server has sent it."));
             out.add(Line.blank());
