@@ -67,6 +67,9 @@ jobs:
           j=$(ls build/libs/rareradar-*.jar | grep -v sources | head -1)
           n=$(unzip -l "$j" | grep -c '\.class$' || true)
           echo "$j has $n classes"; test "$n" -gt 10
+          for f in assets/rareradar/knowledge/species.json.gz assets/rareradar/knowledge/spawns.json.gz assets/rareradar/knowledge/meta.json fabric.mod.json rareradar.mixins.json; do
+            unzip -l "$j" | grep -q "$f" || { echo "::error::$f missing from $j"; exit 1; }
+          done
       - name: Publish jar to the "dev-latest" pre-release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
