@@ -658,7 +658,24 @@ final class Tabs {
             });
             s.button(x + 308, y5, 90, "Clear allowlist", () -> c.privateServerAllowlist.clear());
             s.button(x + 402, y5, 120, "Master Balls: " + (c.allowProtectedBalls ? "§cALLOWED" : "protected"), () -> { c.allowProtectedBalls = !c.allowProtectedBalls; s.rebuild(); });
-            return 110;
+            int y6 = y5 + 22;
+            var r = c.rarity;
+            weight(s, x, y6, "Shiny", () -> r.wShiny, v -> r.wShiny = v);
+            weight(s, x + 104, y6, "Legend", () -> r.wLegendary, v -> r.wLegendary = v);
+            weight(s, x + 208, y6, "Myth", () -> r.wMythical, v -> r.wMythical = v);
+            weight(s, x + 312, y6, "UB/Pdx", () -> r.wSpecial, v -> r.wSpecial = v);
+            weight(s, x + 416, y6, "Demand", () -> r.wDemand, v -> r.wDemand = v);
+            return 132;
+        }
+
+        /** Weight cycle button: +0.5 per click, wrapping from 10 back to 0. Takes effect on the next scan. */
+        private static void weight(DashboardScreen s, int x, int y, String label, java.util.function.DoubleSupplier get, java.util.function.DoubleConsumer set) {
+            s.button(x, y, 100, String.format(Locale.ROOT, "w %s %.1f", label, get.getAsDouble()), () -> {
+                double v = get.getAsDouble() + 0.5;
+                set.accept(v > 10 ? 0 : v);
+                RadarScanner.clear();
+                s.rebuild();
+            });
         }
 
         private void logBoss(boolean drop) {
@@ -680,7 +697,7 @@ final class Tabs {
             for (Watchlist.Entry e : g().watchlist.entries()) out.add(Line.t("  " + e.species + (e.form == null ? "" : " (" + e.form + ")") + (e.shinyOnly ? " — shiny only" : "") + " · priority " + e.priority));
             out.add(Line.h("RARITY WEIGHTS  R = w1·S + w2·L + w3·M + w4·P + w5·D  (priority score, not spawn odds)"));
             var r = c.rarity;
-            out.add(Line.t(String.format(Locale.ROOT, "shiny %.1f · legendary %.1f · mythical %.1f · UB/paradox %.1f · demand %.1f · watchlist %.1f  (edit config/rareradar/v3.json)",
+            out.add(Line.t(String.format(Locale.ROOT, "shiny %.1f · legendary %.1f · mythical %.1f · UB/paradox %.1f · demand %.1f · watchlist %.1f  (click the w buttons; more in config/rareradar/v3.json)",
                     r.wShiny, r.wLegendary, r.wMythical, r.wSpecial, r.wDemand, r.wWatchlist)));
             out.add(Line.h("ECONOMIC INPUTS"));
             out.add(Line.t("Hunt Point value: " + Money.fmt(c.huntPointValue) + " · token value: " + Money.fmt(c.tokenValue) + " · travel " + c.travelMinutes + " min"));
