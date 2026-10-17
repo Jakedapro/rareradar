@@ -14,4 +14,5 @@ public abstract class Screen extends net.minecraft.client.gui.AbstractParentElem
     public void close() {}
     protected <T extends net.minecraft.client.gui.Element & net.minecraft.client.gui.Drawable & net.minecraft.client.gui.Selectable> T addDrawableChild(T child) { throw new UnsupportedOperationException(); }
     protected void clearAndInit() {}
+    public net.minecraft.text.Text getTitle() { throw new UnsupportedOperationException(); }
 }

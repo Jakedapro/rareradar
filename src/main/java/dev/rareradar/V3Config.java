@@ -32,6 +32,10 @@ public final class V3Config {
     // CobbleGalaxy read-only bridge
     public boolean cobbleGalaxyBridge = true;
     public boolean captureGtsListings = true;
+    /** Parse server (system) chat GTS announcements. Player chat is never used. */
+    public boolean captureGtsChat = true;
+    /** Parse chest-style /gts menus (used when the CobbleGalaxy client mod is not installed). */
+    public boolean captureGtsChestMenu = true;
     /** HISTORY cards whose status text matches this are recorded as confirmed sales (hypothesis — verify in-game). */
     public String gtsSoldPattern = "(?i)\\b(sold|purchased|bought)\\b";
 

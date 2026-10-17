@@ -87,6 +87,16 @@ Dashboard navigation: `←`/`→` (or `Tab`) switch pages, `↑`/`↓`/`PgUp`/`P
 * **Inventory**: ball, candy and item counts; replacement value from your prices; low-reserve warnings; protected items.
 * **History**: daily and weekly reports, trends, CSV/JSON export, one-click zip backup.
 
+### GTS price capture (read-only)
+
+RareRadar records asking prices from three sources. It never clicks, buys or lists anything.
+
+1. **CobbleGalaxy's custom GTS screen**: only when the CobbleGalaxy client mod is installed.
+2. **Chest-style `/gts` menu**: item names plus a lore line labelled Price/Cost/Buy.
+3. **Server GTS announcements in chat**: system messages only.
+
+Check whether it works in the log (`[GTS capture]` lines) or on Dashboard → Market. Lines it could not parse are saved to `config/rareradar/data/gts_samples.txt`.
+
 ### AutoHunt V2 (single-player / your own server only)
 
 * **State machine**: scan → select → plan → approach → aim → throw → await → verify.

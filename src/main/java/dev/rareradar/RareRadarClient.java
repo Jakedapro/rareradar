@@ -49,6 +49,11 @@ public class RareRadarClient implements ClientModInitializer {
         stopKey = key("key.rareradar.stop", GLFW.GLFW_KEY_BACKSPACE);
 
         ClientTickEvents.END_CLIENT_TICK.register(RareRadarClient::tick);
+        GtsCapture.register();
+        LOG.info("[GTS capture] CobbleGalaxy client mod {}; chat capture {}, chest-menu capture {}, CobbleGalaxy-screen capture {}; {} stored price observations",
+                CobbleGalaxyBridge.present() ? "installed" : "NOT installed (its custom /gts screen cannot be read)",
+                Galaxy.get().cfg.captureGtsChat ? "on" : "off", Galaxy.get().cfg.captureGtsChestMenu ? "on" : "off",
+                Galaxy.get().cfg.cobbleGalaxyBridge && Galaxy.get().cfg.captureGtsListings ? "on" : "off", Galaxy.get().market.size());
         HudRenderCallback.EVENT.register(RadarHud::render);
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
@@ -96,12 +101,14 @@ public class RareRadarClient implements ClientModInitializer {
             g.adoptModel();
             RadarScanner.tick(client);
             CobbleGalaxyBridge.tick(client);
+            GtsCapture.tick(client);
             AutoHunt.tick(client);
             if (client.player != null) {
                 ++inventoryTick;
                 if (inventoryTick % 40 == 0) countInventory(client);
                 // Crash safety: persist observation time and the live session every 2 minutes so rates stay honest.
                 if (inventoryTick % 2400 == 0) { g.exposure.save(); g.sessions.checkpoint(); }
+                if (inventoryTick % 6000 == 0) GtsCapture.logSummaries();
             }
         } catch (RuntimeException | LinkageError e) {
             // Fail safe: stop automation and release keys, keep the game running, log with stack trace.

@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.0.0-alpha.2 — GTS price capture repair
+
+### Why no prices were saved in alpha.1
+- Prices were only read from CobbleGalaxy's own custom GTS screen, `com.cobblegalaxy.client.gts.GTSScreen`. That screen exists only when the **CobbleGalaxy client mod** is installed.
+- In every other case, `/gts` opens a regular chest-style menu, and alpha.1 ignored it completely.
+- Alpha.1 also had **no chat listener**, so GTS announcements were never read.
+- Result: no observation was ever created, so `market.jsonl` was never written (it is created on the first save).
+
+### Added
+- **Chest-style /gts menu capture:**
+  - Reads the item names and lore that the menu displays.
+  - Requires an explicitly labelled price line ("Price"/"Cost"/"Buy").
+  - Takes the species from the Cobblemon Pokémon item, or by species-name lookup.
+  - Pages titled history/sold/log are skipped.
+  - Nothing is clicked.
+- **GTS chat announcement capture:**
+  - Only server/system messages that contain "GTS" and exactly one price are read.
+  - Player chat is never used, so typed fake prices are ignored.
+- **Classification:** everything is stored as an asking price (LISTING) unless the text explicitly says sold/bought/purchased *and* contains no listing words. A listing is never stored as a completed sale.
+- **Diagnostics:**
+  - At startup: which capture paths are active and whether the CobbleGalaxy client mod is installed.
+  - When any GTS-looking screen opens: its class and title, and which parser applies.
+  - Per-path counters (detected / parsed / rejected by reason / duplicates / saved): logged, and shown on Dashboard → Market.
+  - Unparsed lines are written to `config/rareradar/data/gts_samples.txt` so the parser can be tuned to real CobbleGalaxy wording.
+- Config toggles: `captureGtsChat`, `captureGtsChestMenu` (both on by default).
+
+### Unchanged
+- Existing config, watchlist, encounter, session and market files are untouched; new settings use defaults.
+
 ## 3.0.0-alpha.1 — "Galaxy Profit Engine" (unreleased, development build)
 
 ### Added

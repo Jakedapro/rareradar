@@ -283,6 +283,14 @@ final class Tabs {
             var model = g.model();
             out.add(Line.dim("Price model: " + (model == null ? "training…" : model.metrics().summary())));
             out.add(Line.blank());
+            out.add(Line.h("GTS CAPTURE DIAGNOSTICS  (detected → parsed → saved; rejected lines are logged and kept in data/gts_samples.txt)"));
+            out.add(Line.t("CobbleGalaxy client mod: " + (CobbleGalaxyBridge.present() ? "installed" : "not installed — its custom /gts screen can't be read; chat + chest-menu capture still work")));
+            for (var st : List.of(CobbleGalaxyBridge.GUI, GtsCapture.MENU, GtsCapture.CHAT)) {
+                out.add(st.saved > 0 ? Line.good("  " + st.summary()) : Line.t("  " + st.summary()));
+                for (String smp : st.recentRejectedSamples().subList(Math.max(0, st.recentRejectedSamples().size() - 3), st.recentRejectedSamples().size()))
+                    out.add(Line.dim("     rejected: " + (smp.length() > 140 ? smp.substring(0, 140) + "…" : smp)));
+            }
+            out.add(Line.blank());
             DashboardText.opportunities(out, g.opportunities.marketWide(now), 8);
             out.add(Line.blank());
             DashboardText.marketSummary(out, g.market, g.valuator, now, 30);
@@ -641,6 +649,8 @@ final class Tabs {
             s.button(x + 144, y, 130, "Bridge: " + onOff(c.cobbleGalaxyBridge), () -> { c.cobbleGalaxyBridge = !c.cobbleGalaxyBridge; s.rebuild(); });
             s.button(x + 278, y, 130, "GTS capture: " + onOff(c.captureGtsListings), () -> { c.captureGtsListings = !c.captureGtsListings; s.rebuild(); });
             s.button(x + 412, y, 110, "HUD values: " + onOff(c.showValues), () -> { c.showValues = !c.showValues; s.rebuild(); });
+            s.button(x + 526, y, 110, "GTS chat: " + onOff(c.captureGtsChat), () -> { c.captureGtsChat = !c.captureGtsChat; s.rebuild(); });
+            s.button(x + 640, y, 120, "GTS menu: " + onOff(c.captureGtsChestMenu), () -> { c.captureGtsChestMenu = !c.captureGtsChestMenu; s.rebuild(); });
             int y2 = y + 22;
             s.button(x, y2, 90, "Scan every " + c.scanIntervalTicks + "t", () -> { c.scanIntervalTicks = c.scanIntervalTicks >= 20 ? 1 : c.scanIntervalTicks * 2; s.rebuild(); });
             s.button(x + 94, y2, 90, "HUD scale " + c.hudScale, () -> { c.hudScale = c.hudScale >= 2f ? 0.5f : c.hudScale + 0.25f; s.rebuild(); });

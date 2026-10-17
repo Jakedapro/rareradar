@@ -46,6 +46,7 @@ public final class CobbleGalaxyBridge {
     public static volatile int[] gtsSlots;
     public static volatile long lastHuntSync, lastGtsCapture, lastDexSync, lastBuilderSync;
     public static volatile int gtsCaptured;
+    public static final dev.rareradar.core.market.CaptureStats GUI = new dev.rareradar.core.market.CaptureStats("GTS CobbleGalaxy screen");
 
     private CobbleGalaxyBridge() {}
 
@@ -135,19 +136,20 @@ public final class CobbleGalaxyBridge {
         long now = System.currentTimeMillis();
         List<PriceObservation> add = new ArrayList<>();
         for (Object card : (List<?>) call(state, "getCards")) {
+            GUI.detected++;
             Object mon = call(card, "getPokemon");
-            if (mon == null) continue; // item listings are not tracked
+            if (mon == null) { GUI.reject("item listing (not tracked from this screen yet)", null); continue; }
             double price = ((Number) call(card, "getPrice")).doubleValue();
-            if (!(price > 0)) continue;
+            if (!(price > 0)) { GUI.reject("no price on card", null); continue; }
             PriceObservation.Kind kind;
             if (history) {
                 String status = text(call(card, "getStatusJson"));
-                if (!sold.matcher(status).find()) continue;
+                if (!sold.matcher(status).find()) { GUI.reject("history card not marked sold", status); continue; }
                 kind = PriceObservation.Kind.SALE;
             } else kind = PriceObservation.Kind.LISTING;
             String id = String.valueOf(call(card, "getId"));
             String key = "gts:" + kind + ":" + id + ":" + Math.round(price);
-            if (seenGtsKeys.contains(key)) continue;
+            if (seenGtsKeys.contains(key)) { GUI.duplicates++; continue; }
             PriceObservation p = new PriceObservation();
             String sp = String.valueOf(call(mon, "getSpecies"));
             p.species = PokemonObservation.norm(sp.contains(":") ? sp.substring(sp.indexOf(':') + 1) : sp);
@@ -164,14 +166,18 @@ public final class CobbleGalaxyBridge {
             p.source = PriceObservation.Source.IMPORT;
             // The card carries no completion time, so a HISTORY sale is stamped when first seen (noted for the user).
             p.note = history ? key + " (history; sale time unknown)" : key;
-            if (p.validate() == null) { add.add(p); seenGtsKeys.add(key); }
+            String err = p.validate();
+            if (err == null) { add.add(p); seenGtsKeys.add(key); GUI.parsed++; }
+            else GUI.reject("invalid: " + err, p.species);
         }
         if (!add.isEmpty()) {
-            g.market.importAll(add);
+            int[] res = g.market.importAll(add);
+            GUI.saved += res[0];
             gtsCaptured += add.size();
             lastGtsCapture = now;
             Log.info("Recorded " + add.size() + " GTS " + (history ? "sale(s)" : "listing(s)") + " from the page you viewed");
         }
+        if (GUI.changedSinceLastLog()) Log.info("[GTS capture] " + GUI.summary() + " (view " + view + ")");
     }
 
     private static void loadSeen(Galaxy g) {
