@@ -37,5 +37,15 @@ jobs:
           curl -fsSL "$url" -o libs/cobblemon.jar
       - name: Build mod
         run: gradle build
+      - name: Report jar contents
+        run: |
+          ls -la build/libs
+          for j in build/libs/*.jar; do
+            n=$(unzip -l "$j" | grep -c '\.class$' || true)
+            echo "::notice title=jar::$(basename "$j") $(stat -c %s "$j") bytes, $n classes"
+          done
       - uses: actions/upload-artifact@v4
-        with: { name: rareradar-jar, path: build/libs/*.jar }
+        with:
+          name: rareradar-jar
+          path: build/libs/
+          if-no-files-found: error
