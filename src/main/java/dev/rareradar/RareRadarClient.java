@@ -29,6 +29,7 @@ public class RareRadarClient implements ClientModInitializer {
     private static final List<Hit> hits = new ArrayList<>();
     private static KeyBinding toggleKey;
     private static KeyBinding huntKey;
+    private static KeyBinding trainKey;
 
     @Override
     public void onInitializeClient() {
@@ -39,7 +40,11 @@ public class RareRadarClient implements ClientModInitializer {
         huntKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.rareradar.hunt", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, "key.categories.rareradar"));
 
+        trainKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.rareradar.train", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_L, "key.categories.rareradar"));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (trainKey.wasPressed()) AutoHunt.toggleTrain(client);
             while (huntKey.wasPressed()) AutoHunt.toggle(client);
             while (toggleKey.wasPressed()) {
                 enabled = !enabled;

@@ -12,11 +12,34 @@ import net.minecraft.util.math.Vec3d;
 
 import net.minecraft.util.math.BlockPos;
 
+import com.cobblemon.mod.common.battles.InBattleMove;
+import com.cobblemon.mod.common.battles.MoveActionResponse;
+import com.cobblemon.mod.common.api.moves.MoveTemplate;
+import com.cobblemon.mod.common.api.moves.Moves;
+import com.cobblemon.mod.common.client.CobblemonClient;
+import com.cobblemon.mod.common.client.battle.ClientBattle;
+import com.cobblemon.mod.common.client.battle.SingleActionRequest;
+import com.cobblemon.mod.common.pokemon.Pokemon;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 
 /** Walks toward the nearest rare Pokemon and throws balls at it. Toggle with the hunt key. */
 public final class AutoHunt {
     public static boolean active = false;
+    /** true = train mode (battle wild Pokemon for XP/EVs), false = hunt mode (catch rares). */
+    public static boolean train = false;
+    private static final int LEVEL_WINDOW = 6;
+    private static final double TRAIN_RANGE = 6.0;
+    private static final float MIN_LEAD_HP = 0.4f;
+    private static int battleDelay = 0;
+    private static Set<String> evSpecies = Set.of();
     private static final double SCAN_RANGE = 160.0;
     private static final double THROW_RANGE = 9.0;
     private static final int THROW_COOLDOWN = 50; // ticks between throws
@@ -36,19 +59,47 @@ public final class AutoHunt {
 
     private AutoHunt() {}
 
+    public static void toggleTrain(MinecraftClient client) {
+        if (!active) { train = true; loadEvSpecies(); } else if (!train) { stop(client, "switched mode"); train = true; loadEvSpecies(); }
+        toggle(client);
+    }
+
+    private static void loadEvSpecies() {
+        Path f = FabricLoader.getInstance().getConfigDir().resolve("rareradar-ev.txt");
+        try {
+            if (Files.exists(f)) {
+                Set<String> out = new HashSet<>();
+                for (String l : Files.readAllLines(f)) {
+                    l = l.trim().toLowerCase();
+                    if (!l.isEmpty() && !l.startsWith("#")) out.add(l);
+                }
+                evSpecies = out;
+            } else {
+                evSpecies = Set.of();
+            }
+        } catch (Exception e) {
+            RareRadarClient.LOG.warn("Could not read {}: {}", f, e.toString());
+            evSpecies = Set.of();
+        }
+        RareRadarClient.LOG.info("EV target species: {}", evSpecies.isEmpty() ? "(none, training any wild near your level)" : evSpecies);
+    }
+
     public static void toggle(MinecraftClient client) {
+        if (!active && !train) { /* plain hunt */ }
         active = !active;
-        RareRadarClient.LOG.info("Auto hunt {}", active ? "ON" : "OFF");
+        if (!active && train) train = false;
+        RareRadarClient.LOG.info("Auto {} {}", train ? "train" : "hunt", active ? "ON" : "OFF");
         if (!active) releaseKeys(client);
         target = null;
         if (client.player != null) {
-            client.player.sendMessage(net.minecraft.text.Text.literal("Auto Hunt: " + (active ? "ON" : "OFF")), true);
+            client.player.sendMessage(net.minecraft.text.Text.literal((train ? "Auto Train: " : "Auto Hunt: ") + (active ? "ON" : "OFF")), true);
         }
     }
 
     public static void stop(MinecraftClient client, String why) {
         active = false;
-        RareRadarClient.LOG.info("Auto hunt stopped: {}", why);
+        train = false;
+        RareRadarClient.LOG.info("Auto hunt/train stopped: {}", why);
         releaseKeys(client);
         target = null;
         if (client.player != null) {
@@ -66,14 +117,16 @@ public final class AutoHunt {
         if (!active) return;
         ClientPlayerEntity p = client.player;
         if (p == null || client.world == null) { active = false; return; }
-        if (client.currentScreen != null) { releaseKeys(client); return; } // pause in menus/battles
+        if (train && handleBattle(client)) { releaseKeys(client); return; }
+        if (client.currentScreen != null) { releaseKeys(client); return; } // pause in menus
         if (p.getHealth() < 8.0f) { stop(client, "low health"); return; }
         if (cooldown > 0) cooldown--;
 
-        if (target == null || target.isRemoved() || !target.isAlive() || Rarity.of(target) == null) {
-            target = nearestRare(client);
+        if (train && !leadOk()) { stop(client, "lead Pokemon is hurt or fainted - heal it"); return; }
+        if (target == null || target.isRemoved() || !target.isAlive() || (!train && Rarity.of(target) == null)) {
+            target = train ? bestTrainTarget(client) : nearestRare(client);
             if (target == null) { releaseKeys(client); return; } // idle, keep looking
-            RareRadarClient.LOG.info("Target: {} ({}) at {} dist {}", target.getPokemon().getSpecies().getName(), Rarity.of(target).label, target.getBlockPos().toShortString(), (int) target.distanceTo(p));
+            RareRadarClient.LOG.info("Target: {} ({}) at {} dist {}", target.getPokemon().getSpecies().getName(), train ? "lv" + target.getPokemon().getLevel() : Rarity.of(target).label, target.getBlockPos().toShortString(), (int) target.distanceTo(p));
         }
         if (target.isBattling()) { releaseKeys(client); return; } // someone else is fighting it
 
@@ -81,7 +134,7 @@ public final class AutoHunt {
         Vec3d aim = target.getPos().add(0, target.getHeight() * 0.5, 0);
         double flat = Math.hypot(aim.x - p.getX(), aim.z - p.getZ());
 
-        boolean inRange = flat <= THROW_RANGE && p.canSee(target);
+        boolean inRange = flat <= (train ? TRAIN_RANGE : THROW_RANGE) && p.canSee(target);
         if (inRange) {
             releaseKeys(client);
             faceToward(p, eye, aim);
@@ -89,7 +142,13 @@ public final class AutoHunt {
             return;
         }
 
-        if (inRange && cooldown == 0) {
+        if (inRange && cooldown == 0 && train) {
+            KeyBinding k = sendOutKey(client);
+            if (k == null) { stop(client, "could not find Cobblemon's Throw Selected Pokemon key"); return; }
+            RareRadarClient.LOG.info("Sending out lead at {}", target.getPokemon().getSpecies().getName());
+            KeyBinding.onKeyPressed(InputUtil.fromTranslationKey(k.getBoundKeyTranslationKey()));
+            cooldown = 100 + client.world.random.nextInt(40);
+        } else if (inRange && cooldown == 0) {
             if (selectBall(client, p)) {
                 RareRadarClient.LOG.info("Throwing ball at {}", target.getPokemon().getSpecies().getName());
                 client.interactionManager.interactItem(p, Hand.MAIN_HAND);
@@ -119,6 +178,67 @@ public final class AutoHunt {
         float wantPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.hypot(dx, dz)));
         p.setYaw(p.getYaw() + MathHelper.clamp(MathHelper.wrapDegrees(wantYaw - p.getYaw()), -MAX_TURN, MAX_TURN));
         p.setPitch(p.getPitch() + MathHelper.clamp(wantPitch - p.getPitch(), -MAX_TURN, MAX_TURN));
+    }
+
+    private static KeyBinding sendOutKey(MinecraftClient c) {
+        for (KeyBinding k : c.options.allKeys) if (k.getTranslationKey().equals("key.cobblemon.throwpartypokemon")) return k;
+        return null;
+    }
+
+    private static Pokemon lead() {
+        var party = CobblemonClient.INSTANCE.getStorage().getParty();
+        for (Pokemon pk : party.getSlots()) if (pk != null && !pk.isFainted()) return pk;
+        return null;
+    }
+
+    private static boolean leadOk() {
+        Pokemon pk = lead();
+        return pk != null && pk.getCurrentHealth() >= pk.getMaxHealth() * MIN_LEAD_HP;
+    }
+
+    private static PokemonEntity bestTrainTarget(MinecraftClient client) {
+        Pokemon pk = lead();
+        int lvl = pk == null ? 1 : pk.getLevel();
+        PokemonEntity best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (Entity e : client.world.getEntities()) {
+            if (!(e instanceof PokemonEntity pe) || pe.getOwnerUuid() != null || pe.isBattling()) continue;
+            int l = pe.getPokemon().getLevel();
+            boolean evHit = evSpecies.contains(pe.getPokemon().getSpecies().getName().toLowerCase());
+            if (!evSpecies.isEmpty() && !evHit && Math.abs(l - lvl) > LEVEL_WINDOW) continue;
+            if (evSpecies.isEmpty() && Math.abs(l - lvl) > LEVEL_WINDOW) continue;
+            double score = pe.distanceTo(client.player) - (evHit ? 40 : 0);
+            if (pe.distanceTo(client.player) > SCAN_RANGE) continue;
+            if (score < bestScore) { bestScore = score; best = pe; }
+        }
+        return best;
+    }
+
+    /** Picks the strongest usable move each turn. Returns true while a battle is in progress. */
+    private static boolean handleBattle(MinecraftClient client) {
+        ClientBattle battle = CobblemonClient.INSTANCE.getBattle();
+        if (battle == null || battle.getSpectating()) return false;
+        if (battleDelay > 0) { battleDelay--; return true; }
+        SingleActionRequest req = battle.getFirstUnansweredRequest();
+        if (req == null) return true;
+        if (req.getForceSwitch()) { stop(client, "lead fainted in battle"); return true; }
+        InBattleMove bestMove = null;
+        double bestScore = -1;
+        for (InBattleMove m : req.getMoveSet().getMoves()) {
+            if (!m.canBeUsed()) continue;
+            MoveTemplate t = Moves.INSTANCE.getByName(m.getId());
+            double power = t == null ? 0 : t.getPower();
+            double acc = t == null || t.getAccuracy() <= 0 ? 100 : t.getAccuracy();
+            double score = power * acc / 100.0;
+            if (bestMove == null || score > bestScore) { bestMove = m; bestScore = score; }
+        }
+        if (bestMove == null) { stop(client, "no usable moves"); return true; }
+        String pnx = req.getActivePokemon().getOppositeOpponent() == null ? null : req.getActivePokemon().getOppositeOpponent().getPNX();
+        RareRadarClient.LOG.info("Battle: using {} (score {})", bestMove.getId(), (int) bestScore);
+        req.setResponse(new MoveActionResponse(bestMove.getId(), pnx, null));
+        battle.checkForFinishedChoosing();
+        battleDelay = 25 + client.world.random.nextInt(25);
+        return true;
     }
 
     /** Follow an A* path toward the target. Returns false if the hunt was aborted. */
