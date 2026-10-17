@@ -680,7 +680,7 @@ final class Tabs {
 
     // =================================================================== Config
     static final class Config implements Tab {
-        private TextFieldWidget watchSpecies, hpValue, tokenValue, bossSpecies;
+        private TextFieldWidget watchSpecies, hpValue, tokenValue, bossSpecies, feePct;
 
         public String name() { return "Config"; }
 
@@ -719,9 +719,11 @@ final class Tabs {
             int y4 = y3 + 22;
             hpValue = s.field(x, y4, 90, "$ per Hunt Point");
             tokenValue = s.field(x + 94, y4, 90, "$ per token");
+            feePct = s.field(x + 520, y4, 60, "GTS fee %");
             s.button(x + 188, y4, 60, "Set", () -> {
                 if (!hpValue.getText().isBlank()) c.huntPointValue = Parse.money(hpValue.getText());
                 if (!tokenValue.getText().isBlank()) c.tokenValue = Parse.money(tokenValue.getText());
+                if (!feePct.getText().isBlank()) c.gtsFeePercent = Parse.money(feePct.getText().replace("%", ""));
                 c.sanitize();
             });
             bossSpecies = s.field(x + 256, y4, 90, "boss species");
@@ -772,7 +774,8 @@ final class Tabs {
             out.add(Line.t(String.format(Locale.ROOT, "shiny %.1f · legendary %.1f · mythical %.1f · UB/paradox %.1f · demand %.1f · watchlist %.1f  (click the w buttons; more in config/rareradar/v3.json)",
                     r.wShiny, r.wLegendary, r.wMythical, r.wSpecial, r.wDemand, r.wWatchlist)));
             out.add(Line.h("ECONOMIC INPUTS"));
-            out.add(Line.t("Hunt Point value: " + Money.fmt(c.huntPointValue) + " · token value: " + Money.fmt(c.tokenValue) + " · travel " + c.travelMinutes + " min"));
+            out.add(Line.t("Hunt Point value: " + Money.fmt(c.huntPointValue) + " · token value: " + Money.fmt(c.tokenValue) + " · travel " + c.travelMinutes + " min · GTS fee "
+                    + (Double.isFinite(c.gtsFeePercent) ? c.gtsFeePercent + "%" : "unknown (enter it if you know it; the server doesn't document one)")));
             out.add(Line.h("AUTOMATION LIMITS"));
             out.add(Line.t(String.format(Locale.ROOT, "Limits: %d min/run · %d balls/run · %d balls/target · stop below %.0f HP", c.safety.maxRunMinutes, c.safety.maxBallsPerRun, c.safety.maxBallsPerTarget, c.safety.minHealth)));
             out.add(Line.dim("Per-server permissions, enable/pause/stop and the audit log are on the Automation page."));
