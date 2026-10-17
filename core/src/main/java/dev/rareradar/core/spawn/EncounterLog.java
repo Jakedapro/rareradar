@@ -19,17 +19,31 @@ public final class EncounterLog {
         store = new JsonlStore<>(file, EncounterRecord.class, writer);
         for (EncounterRecord r : store.load()) if (r.species != null && r.ts > 0) {
             if (r.time == null) r.time = TimeBucket.UNKNOWN;
-            records.add(r);
+            records.add(intern(r));
         }
     }
 
     /** Records the entity if it has not been seen before. Returns true when it was new. */
     public boolean record(UUID entity, EncounterRecord r) {
         if (entity != null && seen.put(entity, Boolean.TRUE) != null) return false;
-        records.add(r);
+        records.add(intern(r));
         store.append(r);
         return true;
     }
+
+    /**
+     * Encounters are kept in memory for statistics; the few distinct species/biome/dimension/weather/session
+     * strings are shared so a long history costs tens of bytes per record instead of hundreds.
+     */
+    private final Map<String, String> pool = new HashMap<>();
+
+    private EncounterRecord intern(EncounterRecord r) {
+        r.species = pooled(r.species); r.form = pooled(r.form); r.rarity = pooled(r.rarity);
+        r.biome = pooled(r.biome); r.dimension = pooled(r.dimension); r.weather = pooled(r.weather); r.session = pooled(r.session);
+        return r;
+    }
+
+    private String pooled(String s) { return s == null ? null : pool.computeIfAbsent(s, k -> k); }
 
     public boolean alreadySeen(UUID entity) { return entity != null && seen.containsKey(entity); }
 

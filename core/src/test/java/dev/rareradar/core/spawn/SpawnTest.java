@@ -35,7 +35,9 @@ class SpawnTest {
         assertTrue(log.record(id, rec("zubat", "cave", false, TimeBucket.NIGHT)));
         assertFalse(log.record(id, rec("zubat", "cave", false, TimeBucket.NIGHT)));
         assertTrue(log.record(UUID.randomUUID(), rec("zubat", "cave", true, TimeBucket.NIGHT)));
-        assertEquals(2, new EncounterLog(dir.resolve("e.jsonl"), AsyncWriter.inline()).all().size());
+        EncounterLog reloaded = new EncounterLog(dir.resolve("e.jsonl"), AsyncWriter.inline());
+        assertEquals(2, reloaded.all().size());
+        assertSame(reloaded.all().get(0).species, reloaded.all().get(1).species, "repeated strings are shared");
     }
 
     @Test void exposureNormalisationAndPersistence() {
