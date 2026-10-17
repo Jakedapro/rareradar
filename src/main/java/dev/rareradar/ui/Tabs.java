@@ -201,6 +201,8 @@ final class Tabs {
             s.button(x + 460, y, 60, "Log", () -> {
                 double m = Parse.money(minutes.getText());
                 if (!(m > 0)) throw new IllegalArgumentException("Enter the minutes spent");
+                if (revenue.getText().isBlank() && estimated.getText().isBlank() && costs.getText().isBlank())
+                    throw new IllegalArgumentException("Enter what you received, the estimated value or costs (type 0 if nothing)");
                 ActivityRecord r = ActivityRecord.of(activity, now() - (long) (m * 60_000), m,
                         nz(Parse.money(revenue.getText())), nz(Parse.money(estimated.getText())), nz(Parse.money(costs.getText())));
                 g().activities.add(r);
@@ -290,7 +292,8 @@ final class Tabs {
     // =================================================================== Hunts
     static final class Hunts implements Tab {
         private TextFieldWidget title, species, count, points, money, current;
-        private static int selected;
+        /** Selected hunt by id: the ranking re-orders as progress and time change, so an index would drift. */
+        private static String selectedId;
 
         public String name() { return "Hunts"; }
 
@@ -309,8 +312,8 @@ final class Tabs {
                 s.rebuild();
             });
             int y2 = y + 22;
-            s.button(x, y2, 24, "◀", () -> selected = Math.max(0, selected - 1));
-            s.button(x + 26, y2, 24, "▶", () -> selected++);
+            s.button(x, y2, 24, "◀", () -> move(-1));
+            s.button(x + 26, y2, 24, "▶", () -> move(1));
             s.button(x + 54, y2, 50, "+1", () -> act(h -> g().hunts.progress(h.id, 1, now())));
             s.button(x + 106, y2, 50, "−1", () -> act(h -> g().hunts.progress(h.id, -1, now())));
             s.button(x + 158, y2, 70, "Complete", () -> act(h -> { g().hunts.complete(h.id, now()); g().sessions.huntCompleted();
@@ -326,21 +329,40 @@ final class Tabs {
             return 44;
         }
 
+        private static List<HuntObjective> ordered() {
+            List<HuntObjective> l = new ArrayList<>();
+            for (HuntOptimizer.Ranked r : HuntOptimizer.rank(g().hunts.active(now()), huntInputs())) l.add(r.hunt());
+            return l;
+        }
+
+        private static HuntObjective selected() {
+            List<HuntObjective> l = ordered();
+            if (l.isEmpty()) return null;
+            for (HuntObjective h : l) if (h.id.equals(selectedId)) return h;
+            selectedId = l.get(0).id;
+            return l.get(0);
+        }
+
+        private static void move(int d) {
+            List<HuntObjective> l = ordered();
+            if (l.isEmpty()) return;
+            HuntObjective cur = selected();
+            int i = Math.floorMod(l.indexOf(cur) + d, l.size());
+            selectedId = l.get(i).id;
+        }
+
         private static void act(java.util.function.Consumer<HuntObjective> f) {
-            List<HuntOptimizer.Ranked> r = HuntOptimizer.rank(g().hunts.active(now()), huntInputs());
-            if (r.isEmpty()) throw new IllegalArgumentException("No active hunt selected");
-            selected = Math.min(selected, r.size() - 1);
-            f.accept(r.get(selected).hunt());
+            HuntObjective h = selected();
+            if (h == null) throw new IllegalArgumentException("No active hunt selected");
+            f.accept(h);
         }
 
         public void lines(List<Line> out) {
             Galaxy g = g();
             long now = now();
             List<HuntOptimizer.Ranked> ranked = HuntOptimizer.rank(g.hunts.active(now), huntInputs());
-            if (!ranked.isEmpty()) {
-                selected = Math.min(selected, ranked.size() - 1);
-                out.add(Line.good("Selected for ◀ ▶ / +1 / Complete: #" + (selected + 1)));
-            }
+            HuntObjective sel = selected();
+            if (sel != null) out.add(Line.good("Selected for ◀ ▶ / +1 / Complete: " + (sel.title.isBlank() ? sel.species : sel.title)));
             if (CobbleGalaxyBridge.present()) out.add(Line.dim("Pinned CobbleGalaxy hunts sync automatically (last sync " + ago(CobbleGalaxyBridge.lastHuntSync) + ")."));
             DashboardText.hunts(out, ranked, now);
             out.add(Line.blank());
@@ -371,9 +393,11 @@ final class Tabs {
         public String name() { return "Breed/Build"; }
 
         public int widgets(DashboardScreen s, int x, int y, int w) {
-            s.button(x, y, 90, "Target " + minPerfect + "×31", () -> { minPerfect = minPerfect >= 6 ? 1 : minPerfect + 1; s.rebuild(); });
-            s.button(x + 94, y, 90, "Knot: " + (knot ? "yes" : "no"), () -> { knot = !knot; s.rebuild(); });
-            s.button(x + 188, y, 100, "Everstone: " + (everstone ? "yes" : "no"), () -> { everstone = !everstone; s.rebuild(); });
+            // Toggles relabel in place (no rebuild) so typed economics inputs are kept.
+            ButtonWidget[] b = new ButtonWidget[3];
+            b[0] = s.button(x, y, 90, "Target " + minPerfect + "×31", () -> { minPerfect = minPerfect >= 6 ? 1 : minPerfect + 1; b[0].setMessage(Text.literal("Target " + minPerfect + "×31")); });
+            b[1] = s.button(x + 94, y, 90, "Knot: " + (knot ? "yes" : "no"), () -> { knot = !knot; b[1].setMessage(Text.literal("Knot: " + (knot ? "yes" : "no"))); });
+            b[2] = s.button(x + 188, y, 100, "Everstone: " + (everstone ? "yes" : "no"), () -> { everstone = !everstone; b[2].setMessage(Text.literal("Everstone: " + (everstone ? "yes" : "no"))); });
             nature = s.field(x + 292, y, 70, "nature");
             hitValue = s.field(x, y + 22, 80, "value if hit $");
             missValue = s.field(x + 84, y + 22, 80, "value if miss $");

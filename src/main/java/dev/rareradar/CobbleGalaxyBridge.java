@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 public final class CobbleGalaxyBridge {
     private static final String P = "com.cobblegalaxy.client.";
     private static final Set<String> disabled = new HashSet<>();
+    private static final Map<String, Integer> strikes = new HashMap<>();
     private static final Map<String, Method> methods = new HashMap<>();
     private static final Map<String, Field> fields = new HashMap<>();
     private static Boolean present;
@@ -74,10 +75,14 @@ public final class CobbleGalaxyBridge {
 
     private static void guard(String feature, Job j) {
         if (disabled.contains(feature)) return;
-        try { j.run(); }
+        try { j.run(); strikes.remove(feature); }
         catch (Throwable t) {
-            disabled.add(feature);
-            Log.warn("CobbleGalaxy bridge: '" + feature + "' disabled (CobbleGalaxy client changed?): " + t);
+            // Screens can be briefly half-initialised; only give up after repeated consecutive failures.
+            int n = strikes.merge(feature, 1, Integer::sum);
+            if (n >= 5) {
+                disabled.add(feature);
+                Log.warn("CobbleGalaxy bridge: '" + feature + "' disabled after repeated errors (CobbleGalaxy client changed?): " + t);
+            }
         }
     }
 
@@ -142,7 +147,7 @@ public final class CobbleGalaxyBridge {
             } else kind = PriceObservation.Kind.LISTING;
             String id = String.valueOf(call(card, "getId"));
             String key = "gts:" + kind + ":" + id + ":" + Math.round(price);
-            if (!seenGtsKeys.add(key)) continue;
+            if (seenGtsKeys.contains(key)) continue;
             PriceObservation p = new PriceObservation();
             String sp = String.valueOf(call(mon, "getSpecies"));
             p.species = PokemonObservation.norm(sp.contains(":") ? sp.substring(sp.indexOf(':') + 1) : sp);
@@ -157,8 +162,9 @@ public final class CobbleGalaxyBridge {
             p.price = price;
             p.timestamp = now;
             p.source = PriceObservation.Source.IMPORT;
-            p.note = key;
-            if (p.validate() == null) add.add(p);
+            // The card carries no completion time, so a HISTORY sale is stamped when first seen (noted for the user).
+            p.note = history ? key + " (history; sale time unknown)" : key;
+            if (p.validate() == null) { add.add(p); seenGtsKeys.add(key); }
         }
         if (!add.isEmpty()) {
             g.market.importAll(add);
@@ -171,7 +177,8 @@ public final class CobbleGalaxyBridge {
     private static void loadSeen(Galaxy g) {
         if (seenLoaded) return;
         seenLoaded = true;
-        for (PriceObservation p : g.market.all()) if (p.note != null && p.note.startsWith("gts:")) seenGtsKeys.add(p.note);
+        for (PriceObservation p : g.market.all())
+            if (p.note != null && p.note.startsWith("gts:")) seenGtsKeys.add(p.note.replace(" (history; sale time unknown)", ""));
     }
 
     private static String regionalForm(List<String> aspects) {
@@ -242,21 +249,24 @@ public final class CobbleGalaxyBridge {
         if (best == null) return;
         List<?> species = (List<?>) rows.get(field(best, "listKey"));
         BitSet caught = (BitSet) field(best, "caught");
-        g.dex.universe.clear();
-        g.dex.caught.clear();
+        // Build into temporaries and swap at the end so a failure never leaves a half-filled Pokédex.
+        Set<String> universe = new TreeSet<>(), owned = new TreeSet<>();
         for (int i = 0; i < species.size(); i++) {
             String id = String.valueOf(call(species.get(i), "species"));
             id = PokemonObservation.norm(id.contains(":") ? id.substring(id.indexOf(':') + 1) : id);
-            g.dex.universe.add(id);
-            if (caught != null && caught.get(i)) g.dex.caught.add(id);
+            universe.add(id);
+            if (caught != null && caught.get(i)) owned.add(id);
         }
-        g.dex.tiers.clear();
+        List<DexTier> tiers = new ArrayList<>();
         for (var e : views.entrySet()) {
             for (Object t : (List<?>) field(e.getValue(), "tiers")) {
-                g.dex.tiers.add(new DexTier(String.valueOf(e.getKey()), String.valueOf(call(t, "id")), text(call(t, "name")),
+                tiers.add(new DexTier(String.valueOf(e.getKey()), String.valueOf(call(t, "id")), text(call(t, "name")),
                         num(call(t, "percentage")), (boolean) call(t, "claimed"), (boolean) call(t, "claimable")));
             }
         }
+        g.dex.universe.clear(); g.dex.universe.addAll(universe);
+        g.dex.caught.clear(); g.dex.caught.addAll(owned);
+        g.dex.tiers.clear(); g.dex.tiers.addAll(tiers);
         g.dex.source = "CobbleGalaxy Dex Rewards (" + bestKey + ")";
         g.dex.updatedAt = System.currentTimeMillis();
         lastDexSync = g.dex.updatedAt;

@@ -70,6 +70,17 @@ class HuntTest {
         assertTrue(manual.active(NOW + HuntObjective.OVERLAY_STALE_MS * 10), "manual hunts never go stale");
     }
 
+    @Test void completedOverlayHuntIsNotResurrected() {
+        HuntTracker t = new HuntTracker(dir.resolve("r.jsonl"), AsyncWriter.inline());
+        t.syncOverlay(List.of(OverlayHuntParser.parse("Daily", "Catch Zubat", "zubat", List.of(), List.of("0/1"), 0, NOW)), NOW);
+        t.complete(t.all().get(0).id, NOW + 10);
+        t.syncOverlay(List.of(OverlayHuntParser.parse("Daily", "Catch Zubat", "zubat", List.of(), List.of("0/1"), 0, NOW + 20)), NOW + 20);
+        assertEquals(1, t.all().size(), "still listed by the overlay, but already completed by the user");
+        long nextDay = NOW + HuntTracker.RESURRECT_AFTER_MS + 100;
+        t.syncOverlay(List.of(OverlayHuntParser.parse("Daily", "Catch Zubat", "zubat", List.of(), List.of("0/1"), 0, nextDay)), nextDay);
+        assertEquals(2, t.all().size(), "the same daily hunt can come back later");
+    }
+
     @Test void manualProgress() {
         HuntTracker t = new HuntTracker(dir.resolve("h.jsonl"), AsyncWriter.inline());
         HuntObjective h = HuntObjective.manual("x", "zubat", 2, NOW);

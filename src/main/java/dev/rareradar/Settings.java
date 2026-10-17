@@ -46,7 +46,9 @@ public final class Settings {
             }
             S.sanitize();
         } catch (Exception e) {
-            RareRadarClient.LOG.warn("Could not read config/rareradar.json ({}); using defaults", e.toString());
+            RareRadarClient.LOG.warn("Could not read config/rareradar.json ({}); using defaults (bad file kept as .invalid)", e.toString());
+            try { Files.copy(file(), file().resolveSibling("rareradar.json.invalid"), java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
+            catch (Exception ignored) { /* best effort; the warning above reports the problem */ }
             S = new Settings();
         }
         RareRadarClient.enabled = S.radarEnabled;
@@ -55,7 +57,7 @@ public final class Settings {
     public static void save() {
         try {
             S.radarEnabled = RareRadarClient.enabled;
-            Files.writeString(file(), GSON.toJson(S));
+            Galaxy.writeAtomic(file(), GSON.toJson(S));
         } catch (Exception e) {
             RareRadarClient.LOG.warn("Could not save settings: {}", e.toString());
         }

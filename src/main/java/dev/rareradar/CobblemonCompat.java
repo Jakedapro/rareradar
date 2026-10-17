@@ -171,6 +171,17 @@ public final class CobblemonCompat {
         }
     }
 
+    /** True while the player is in (not spectating) a Cobblemon battle. */
+    public static boolean inBattle() {
+        try {
+            var b = CobblemonClient.INSTANCE.getBattle();
+            return b != null && !b.getSpectating();
+        } catch (LinkageError | RuntimeException t) {
+            warnOnce("battleState", t);
+            return false;
+        }
+    }
+
     public static boolean isBattling(PokemonEntity e) {
         try { return e.isBattling(); } catch (LinkageError | RuntimeException t) { warnOnce("isBattling", t); return false; }
     }

@@ -22,6 +22,12 @@ public final class AutoHuntMachine {
     private final CaptureClassifier classifier = new CaptureClassifier();
     private final Deque<Transition> history = new ArrayDeque<>();
     private int captures, failures;
+    /** Balls thrown per target id this run, so re-selecting a target cannot reset its budget. */
+    private final java.util.Map<Long, Integer> ballsByTarget = new java.util.HashMap<>();
+    /** Targets that failed (stuck, unreachable, budget used) are skipped until the given time. */
+    private final java.util.Map<Long, Long> blacklistUntil = new java.util.HashMap<>();
+    private boolean outcomePending;
+    public static final long BLACKLIST_MS = 120_000;
 
     public AutoHuntMachine(SafetyLimits limits) { this.limits = limits; }
 
@@ -34,10 +40,33 @@ public final class AutoHuntMachine {
     public int captures() { return captures; }
     public int failures() { return failures; }
     public Iterable<Transition> history() { return history; }
+    /** True if the scanner should not offer this id as a candidate right now. */
+    public boolean blacklisted(long id, long now) {
+        Long until = blacklistUntil.get(id);
+        return until != null && until > now;
+    }
+
+    /** Returns the outcome of the last throw exactly once (null if none since the last call). */
+    public CaptureOutcome consumeOutcome() {
+        if (!outcomePending) return null;
+        outcomePending = false;
+        return lastOutcome;
+    }
+
+    private void giveUp(long now, String why) {
+        failures++;
+        if (target != null) blacklistUntil.put(target, now + BLACKLIST_MS);
+        target = null;
+        go(HuntState.RETRY, now, why);
+    }
+
     public boolean running() { return state != HuntState.IDLE && state != HuntState.ABORT; }
 
     public void start(long now) {
         runTicks = ballsThisRun = planFailures = captures = failures = 0;
+        ballsByTarget.clear();
+        blacklistUntil.clear();
+        outcomePending = false;
         stopReason = "";
         target = null;
         go(HuntState.SCAN, now, "started");
@@ -69,8 +98,9 @@ public final class AutoHuntMachine {
             case SUCCESS -> { target = null; go(HuntState.SCAN, now, "next target"); return Command.RELEASE; }
             case SELECT_TARGET -> {
                 if (s.bestCandidateId == null) return Command.RELEASE; // idle-wait for a target
-                if (!s.bestCandidateId.equals(target)) ballsThisTarget = 0;
+                if (blacklisted(s.bestCandidateId, now)) return Command.RELEASE;
                 target = s.bestCandidateId;
+                ballsThisTarget = ballsByTarget.getOrDefault(target, 0);
                 // Stuck and approach timers span re-plans for the same target; only a new selection resets them.
                 stuckTicks = 0;
                 approachTicks = 0;
@@ -83,7 +113,8 @@ public final class AutoHuntMachine {
                 if (s.targetInThrowRange) { go(HuntState.AIM, now, "already in range"); return new Command(Command.Kind.AIM, -1, ""); }
                 if (!s.pathFound) {
                     if (++planFailures >= limits.maxPlanFailures) return abort(now, "no route to targets");
-                    go(HuntState.RETRY, now, "no path");
+                    giveUp(now, "no path");
+                    failures--; // a missing path is counted by planFailures, not as a throw failure
                     return Command.RELEASE;
                 }
                 planFailures = 0;
@@ -95,8 +126,8 @@ public final class AutoHuntMachine {
                 if (s.targetInThrowRange) { go(HuntState.AIM, now, "in range"); return new Command(Command.Kind.AIM, -1, ""); }
                 stuckTicks = s.makingProgress ? 0 : stuckTicks + 1;
                 approachTicks++;
-                if (stuckTicks > limits.stuckTimeoutTicks) { failures++; target = null; go(HuntState.RETRY, now, "stuck"); return Command.RELEASE; }
-                if (approachTicks > limits.approachTimeoutTicks) { failures++; target = null; go(HuntState.RETRY, now, "approach timed out"); return Command.RELEASE; }
+                if (stuckTicks > limits.stuckTimeoutTicks) { giveUp(now, "stuck"); return Command.RELEASE; }
+                if (approachTicks > limits.approachTimeoutTicks) { giveUp(now, "approach timed out"); return Command.RELEASE; }
                 if (s.pathFinished || stuckTicks == limits.stuckTimeoutTicks / 2) { go(HuntState.PLAN_ROUTE, now, "repath"); return new Command(Command.Kind.PLAN_PATH, -1, ""); }
                 return new Command(Command.Kind.FOLLOW_PATH, -1, "");
             }
@@ -104,15 +135,16 @@ public final class AutoHuntMachine {
                 if (!targetValid(s, now)) return Command.RELEASE;
                 if (!s.targetInThrowRange) { go(HuntState.PLAN_ROUTE, now, "target moved out of range"); return new Command(Command.Kind.PLAN_PATH, -1, ""); }
                 if (s.aimed) { go(HuntState.THROW, now, "aimed"); return new Command(Command.Kind.AIM, -1, ""); }
-                if (stateTicks > limits.aimTimeoutTicks) { go(HuntState.RETRY, now, "could not aim"); return Command.RELEASE; }
+                if (stateTicks > limits.aimTimeoutTicks) { giveUp(now, "could not aim"); return Command.RELEASE; }
                 return new Command(Command.Kind.AIM, -1, "");
             }
             case THROW -> {
                 if (!targetValid(s, now)) return Command.RELEASE;
                 if (s.ballSlot < 0) { lastOutcome = CaptureOutcome.NO_BALLS; return abort(now, CaptureOutcome.NO_BALLS.label); }
-                if (ballsThisTarget >= limits.maxBallsPerTarget) { failures++; go(HuntState.RETRY, now, "per-target ball limit"); target = null; return Command.RELEASE; }
+                if (ballsThisTarget >= limits.maxBallsPerTarget) { giveUp(now, "per-target ball limit"); return Command.RELEASE; }
                 ballsThisRun++;
                 ballsThisTarget++;
+                ballsByTarget.put(target, ballsThisTarget);
                 classifier.reset();
                 go(HuntState.AWAIT_RESULT, now, "thrown");
                 return new Command(Command.Kind.THROW, s.ballSlot, "");
@@ -122,6 +154,7 @@ public final class AutoHuntMachine {
                 CaptureOutcome o = classifier.result(limits.awaitResultTimeoutTicks);
                 if (o == null) return Command.RELEASE;
                 lastOutcome = o;
+                outcomePending = true;
                 go(HuntState.VERIFY_CAPTURE, now, o.name());
                 return Command.RELEASE;
             }
@@ -130,8 +163,8 @@ public final class AutoHuntMachine {
                 else {
                     failures++;
                     boolean retrySame = (lastOutcome == CaptureOutcome.BROKE_FREE || lastOutcome == CaptureOutcome.MISSED) && s.targetPresent && !s.targetInBattle;
-                    if (!retrySame) target = null;
-                    go(retrySame ? HuntState.AIM : HuntState.RETRY, now, lastOutcome.label);
+                    if (retrySame) go(HuntState.AIM, now, lastOutcome.label);
+                    else { if (target != null) blacklistUntil.put(target, now + BLACKLIST_MS); target = null; go(HuntState.RETRY, now, lastOutcome.label); }
                 }
                 return Command.RELEASE;
             }

@@ -122,7 +122,7 @@ public final class RadarScanner {
             // (the demand term can move as market data arrives).
             if (c == null || c.owned != owned || now - c.at > 30_000) {
                 PokemonObservation o = CobblemonCompat.observe(pe);
-                if (o == null) continue;
+                if (o == null) { colors.remove(id); continue; }
                 o.x = e.getX(); o.y = e.getY(); o.z = e.getZ();
                 o.biome = currentBiome;
                 o.dimension = client.world.getRegistryKey().getValue().toString();

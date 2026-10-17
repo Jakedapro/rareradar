@@ -12,6 +12,8 @@ public final class HuntTracker {
     private final JsonlStore<HuntObjective> store;
     private final List<HuntObjective> hunts = new ArrayList<>();
 
+    public static final long RESURRECT_AFTER_MS = 20L * 3600_000L;
+
     public HuntTracker(Path file, AsyncWriter writer) {
         store = new JsonlStore<>(file, HuntObjective.class, writer);
         for (HuntObjective h : store.load()) if (h.validate() == null) {
@@ -50,10 +52,18 @@ public final class HuntTracker {
     public boolean syncOverlay(List<HuntObjective> snapshot, long now) {
         boolean changed = false;
         Map<String, HuntObjective> byKey = new HashMap<>();
-        for (HuntObjective h : hunts) if (h.source == HuntObjective.Source.OVERLAY && h.completedAt == null) byKey.put(h.overlayKey, h);
+        Set<String> recentlyClosed = new HashSet<>();
+        for (HuntObjective h : hunts) {
+            if (h.source != HuntObjective.Source.OVERLAY) continue;
+            if (h.completedAt == null && !h.abandoned) byKey.put(h.overlayKey, h);
+            // A hunt the user completed/abandoned is not resurrected while the overlay still lists it; a same-named
+            // hunt can return after RESURRECT_AFTER_MS (daily hunts repeat).
+            else if (now - (h.completedAt != null ? h.completedAt : h.lastSeen) < RESURRECT_AFTER_MS) recentlyClosed.add(h.overlayKey);
+        }
         Set<String> seen = new HashSet<>();
         for (HuntObjective s : snapshot) {
             seen.add(s.overlayKey);
+            if (recentlyClosed.contains(s.overlayKey) && !byKey.containsKey(s.overlayKey)) continue;
             HuntObjective cur = byKey.get(s.overlayKey);
             if (cur == null) { hunts.add(s); changed = true; continue; }
             if (cur.progress != s.progress || cur.required != s.required || !Objects.equals(cur.details, s.details)) {
@@ -88,7 +98,12 @@ public final class HuntTracker {
     }
 
     public void abandon(String id) {
-        for (HuntObjective h : hunts) if (h.id.equals(id)) { h.abandoned = true; persist(); return; }
+        for (HuntObjective h : hunts) if (h.id.equals(id)) { h.abandoned = true; if (h.lastSeen == 0) h.lastSeen = System.currentTimeMillis(); persist(); return; }
+    }
+
+    public HuntObjective byId(String id) {
+        for (HuntObjective h : hunts) if (h.id.equals(id)) return h;
+        return null;
     }
 
     /** Active hunts the observed Pokémon would count toward. */

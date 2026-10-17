@@ -38,6 +38,20 @@ class StatsModuleTest {
         assertEquals(30, r.minutes(), 1e-9);
     }
 
+    @Test void crashedSessionIsRecoveredFromCheckpoint() {
+        SessionTracker t = new SessionTracker(dir.resolve("c.jsonl"), AsyncWriter.inline());
+        t.begin(DAY, "w");
+        t.encounter(false, true, "b");
+        t.touch(DAY + 600_000);
+        t.checkpoint();
+        // simulated crash: no end() call
+        SessionTracker after = new SessionTracker(dir.resolve("c.jsonl"), AsyncWriter.inline());
+        assertEquals(1, after.history().size());
+        assertEquals(1, after.history().get(0).shinyEncounters);
+        assertEquals(10, after.history().get(0).minutes(), 1e-9);
+        assertEquals(1, new SessionTracker(dir.resolve("c.jsonl"), AsyncWriter.inline()).history().size(), "recovered only once");
+    }
+
     @Test void dailyWeeklyAndTrend() {
         List<SessionRecord> s = new ArrayList<>();
         for (int d = 0; d < 10; d++) {

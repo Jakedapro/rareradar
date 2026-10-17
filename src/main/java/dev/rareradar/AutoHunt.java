@@ -40,7 +40,8 @@ public final class AutoHunt {
     private static AutoHuntMachine machine;
     private static final Navigator nav = new Navigator();
     private static PokemonEntity target;
-    private static int ballEntityId = -1;
+    private static int ballEntityId = -1, previousBallId = -1;
+    private static boolean lastPlanOk;
     private static long throwTick, tick;
     private static Vec3d throwEye = Vec3d.ZERO;
     private static String status = "";
@@ -77,8 +78,8 @@ public final class AutoHunt {
         if (client.player == null) return;
         EnvironmentGate.Decision d = gate(client);
         if (!d.allowed()) {
-            train = false;
             client.player.sendMessage(Text.literal("§cAuto " + (train ? "Train" : "Hunt") + " refused: " + d.reason()), false);
+            train = false;
             RareRadarClient.LOG.info("Automation refused: {}", d.reason());
             return;
         }
@@ -117,11 +118,12 @@ public final class AutoHunt {
 
         Sensors s = sense(client, p);
         Command cmd = machine.tick(s);
+        resolveTarget(client); // the machine may have just selected or dropped a target
         status = machine.state() + (target != null ? " → " + target.getPokemon().getSpecies().getName() : "")
                 + " · balls " + machine.ballsThisRun() + "/" + Galaxy.get().cfg.safety.maxBallsPerRun
                 + " · caught " + machine.captures();
         execute(client, p, cmd);
-        if (machine.state() == HuntState.VERIFY_CAPTURE) onOutcome(client, machine.lastOutcome());
+        onOutcome(client, machine.consumeOutcome()); // exactly once per throw
         if (!machine.running()) stop(client, machine.stopReason().isEmpty() ? "finished" : machine.stopReason());
     }
 
@@ -130,19 +132,17 @@ public final class AutoHunt {
         Sensors s = new Sensors();
         s.nowMillis = System.currentTimeMillis();
         s.worldPresent = c.world != null;
-        s.screenOpen = c.currentScreen != null;
+        // Pause in menus and during the player's own Cobblemon battle (its GUI is an overlay, not a Screen).
+        s.screenOpen = c.currentScreen != null || CobblemonCompat.inBattle();
         s.health = p.getHealth();
         for (RadarScanner.Hit h : RadarScanner.hits()) {
             if (h.obs.owned || CobblemonCompat.isBattling(h.entity) || h.entity.isRemoved()) continue;
+            if (machine.blacklisted(h.entity.getId(), s.nowMillis)) continue;
             s.bestCandidateId = (long) h.entity.getId();
             s.bestCandidateScore = h.rarity.score();
             break;
         }
-        Long tid = machine.target();
-        if (tid != null) {
-            Entity e = c.world.getEntityById(tid.intValue());
-            target = e instanceof PokemonEntity pe && !pe.isRemoved() && pe.isAlive() ? pe : null;
-        } else target = null;
+        resolveTarget(c);
         if (target != null) {
             s.targetPresent = true;
             s.targetInBattle = CobblemonCompat.isBattling(target);
@@ -152,7 +152,9 @@ public final class AutoHunt {
         }
         s.pathFinished = nav.finished();
         s.makingProgress = lastProgress;
-        s.ballSlot = chooseBall(p, s.bestCandidateScore);
+        s.pathFound = lastPlanOk;
+        // Ball choice is for the locked target (not whatever is currently best on the radar).
+        s.ballSlot = chooseBall(p, machine.target() != null ? machine.targetScore() : s.bestCandidateScore);
         s.ownBallState = trackBall(c, p);
         return s;
     }
@@ -162,7 +164,8 @@ public final class AutoHunt {
             case RELEASE_KEYS, NONE -> Navigator.release(c);
             case PLAN_PATH -> {
                 Navigator.release(c);
-                if (target != null) nav.plan(c, target.getBlockPos(), 4.0);
+                lastPlanOk = target != null && nav.plan(c, target.getBlockPos(), 4.0);
+                lastProgress = true;
             }
             case FOLLOW_PATH -> {
                 if (target != null) {
@@ -178,6 +181,7 @@ public final class AutoHunt {
                 p.swingHand(Hand.MAIN_HAND);
                 throwTick = tick;
                 throwEye = p.getEyePos();
+                if (ballEntityId >= 0) previousBallId = ballEntityId;
                 ballEntityId = -1;
                 Galaxy.get().sessions.ballThrown();
                 RareRadarClient.LOG.info("Threw {} at {}", ballName(p.getInventory().getStack(cmd.slot())), target == null ? "?" : target.getPokemon().getSpecies().getName());
@@ -193,6 +197,13 @@ public final class AutoHunt {
         RareRadarClient.LOG.info("Throw outcome: {}", o.label);
         if (o == CaptureOutcome.CAPTURED) Galaxy.get().sessions.caught();
         if (c.player != null) c.player.sendMessage(Text.literal("Auto Hunt: " + o.label), true);
+    }
+
+    private static void resolveTarget(MinecraftClient c) {
+        Long tid = machine == null ? null : machine.target();
+        if (tid == null || c.world == null) { target = null; return; }
+        Entity e = c.world.getEntityById(tid.intValue());
+        target = e instanceof PokemonEntity pe && !pe.isRemoved() && pe.isAlive() ? pe : null;
     }
 
     private static Vec3d aimPoint(PokemonEntity e) { return e.getPos().add(0, e.getHeight() * 0.5, 0); }
@@ -234,6 +245,7 @@ public final class AutoHunt {
         Box box = p.getBoundingBox().expand(48);
         EmptyPokeBallEntity best = null;
         for (EmptyPokeBallEntity b : c.world.getEntitiesByClass(EmptyPokeBallEntity.class, box, x -> !x.isRemoved())) {
+            if (b.getId() == previousBallId) continue; // a lingering ball from the previous throw
             if (b.getOwner() == p) { best = b; break; }
             if (tick - throwTick <= 3 && b.age <= 3 && b.getPos().squaredDistanceTo(throwEye) < 16) best = b;
         }
@@ -318,6 +330,7 @@ public final class AutoHunt {
         double bestScore = Double.MAX_VALUE;
         for (Entity e : client.world.getEntities()) {
             if (!(e instanceof PokemonEntity pe) || pe.getOwnerUuid() != null || CobblemonCompat.isBattling(pe)) continue;
+            if (RadarScanner.color(pe.getId()) != -1) continue; // never battle rares, shinies, watchlist or hunt targets
             double dist = pe.distanceTo(client.player);
             if (dist > Settings.S.scanRange) continue;
             int l = pe.getPokemon().getLevel();

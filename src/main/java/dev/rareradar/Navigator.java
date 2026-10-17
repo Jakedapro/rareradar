@@ -16,11 +16,14 @@ final class Navigator {
     private Vec3d lastPos = Vec3d.ZERO;
     private int stillTicks;
 
+    /** Plans a path; true only if it actually ends within reach of the goal (A* returns partial paths otherwise). */
     boolean plan(MinecraftClient c, BlockPos goal, double reach) {
         path = Pathfinder.find(c.world, c.player.getBlockPos(), goal, reach);
         idx = Math.min(1, Math.max(0, path.size() - 1));
         stillTicks = 0;
-        return path.size() >= 2;
+        if (path.size() < 2) return false;
+        BlockPos end = path.get(path.size() - 1);
+        return Math.hypot(end.getX() - goal.getX(), end.getZ() - goal.getZ()) <= reach + 1.5 && Math.abs(end.getY() - goal.getY()) <= 4;
     }
 
     boolean finished() { return path.isEmpty() || idx >= path.size() - 1 && closeTo(path.get(path.size() - 1)); }

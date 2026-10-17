@@ -92,14 +92,22 @@ public class RareRadarClient implements ClientModInitializer {
             if (client.player != null) client.player.sendMessage(Text.literal("Rare Radar: " + (enabled ? "ON" : "OFF")), true);
         }
         try {
+            Galaxy g = Galaxy.get();
+            g.adoptModel();
             RadarScanner.tick(client);
             CobbleGalaxyBridge.tick(client);
             AutoHunt.tick(client);
-            if (client.player != null && ++inventoryTick % 40 == 0) countInventory(client);
-        } catch (RuntimeException e) {
-            // Fail safe: stop automation, keep the game running, log with stack trace.
+            if (client.player != null) {
+                ++inventoryTick;
+                if (inventoryTick % 40 == 0) countInventory(client);
+                // Crash safety: persist observation time and the live session every 2 minutes so rates stay honest.
+                if (inventoryTick % 2400 == 0) { g.exposure.save(); g.sessions.checkpoint(); }
+            }
+        } catch (RuntimeException | LinkageError e) {
+            // Fail safe: stop automation and release keys, keep the game running, log with stack trace.
             LOG.error("RareRadar tick failed", e);
-            AutoHunt.stop(client, "internal error (see log)");
+            try { AutoHunt.stop(client, "internal error (see log)"); } catch (RuntimeException | LinkageError ignored) { /* already logged */ }
+            Navigator.release(client);
         }
     }
 

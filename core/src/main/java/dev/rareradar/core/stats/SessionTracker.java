@@ -13,13 +13,51 @@ public final class SessionTracker {
     private final JsonlStore<SessionRecord> store;
     private final List<SessionRecord> history = new ArrayList<>();
     private SessionRecord current;
+    private final Path checkpointFile;
+    private final AsyncWriter writer;
 
     public SessionTracker(Path file, AsyncWriter writer) {
+        this.writer = writer;
+        this.checkpointFile = file.resolveSibling(file.getFileName() + ".open");
         store = new JsonlStore<>(file, SessionRecord.class, writer);
         for (SessionRecord r : store.load()) if (r.start > 0 && r.end >= r.start) {
             if (r.biomes == null) r.biomes = new java.util.TreeSet<>();
             history.add(r);
         }
+        recoverCheckpoint();
+    }
+
+    /** A session left open by a crash is closed at its last checkpoint and added to history. */
+    private void recoverCheckpoint() {
+        try {
+            if (!java.nio.file.Files.exists(checkpointFile)) return;
+            SessionRecord r = JsonlStore.GSON.fromJson(java.nio.file.Files.readString(checkpointFile), SessionRecord.class);
+            java.nio.file.Files.deleteIfExists(checkpointFile);
+            if (r == null || r.start <= 0 || r.end < r.start) return;
+            for (SessionRecord h : history) if (h.id.equals(r.id)) return;
+            if (r.biomes == null) r.biomes = new java.util.TreeSet<>();
+            history.add(r);
+            store.append(r);
+            dev.rareradar.core.util.Log.info("Recovered an unfinished session from the last run");
+        } catch (Exception e) {
+            dev.rareradar.core.util.Log.warn("Could not recover the unfinished session: " + e);
+        }
+    }
+
+    /** Writes the live session to a side file so a crash loses at most one checkpoint interval. */
+    public void checkpoint() {
+        if (current == null) return;
+        String json = JsonlStore.GSON.toJson(current);
+        writer.submit(() -> {
+            try {
+                java.nio.file.Files.createDirectories(checkpointFile.toAbsolutePath().getParent());
+                Path tmp = checkpointFile.resolveSibling(checkpointFile.getFileName() + ".tmp");
+                java.nio.file.Files.writeString(tmp, json);
+                java.nio.file.Files.move(tmp, checkpointFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                dev.rareradar.core.util.Log.warn("Session checkpoint failed: " + e);
+            }
+        });
     }
 
     public SessionRecord current() { return current; }
@@ -42,6 +80,7 @@ public final class SessionTracker {
             store.append(current);
         }
         current = null;
+        writer.submit(() -> { try { java.nio.file.Files.deleteIfExists(checkpointFile); } catch (Exception ignored) { /* stale checkpoint is de-duplicated by id */ } });
     }
 
     public void touch(long now) { if (current != null) current.end = now; }

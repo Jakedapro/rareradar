@@ -147,7 +147,8 @@ class AutoHuntTest {
         AutoHuntMachine m2 = new AutoHuntMachine(l);
         m2.start(0);
         Sensors np = base(); np.pathFound = false;
-        for (int i = 0; i < 100 && m2.running(); i++) m2.tick(np);
+        // Each unreachable target is blacklisted; the run aborts once several different targets in a row have no route.
+        for (int i = 0; i < 100 && m2.running(); i++) { np.bestCandidateId = 100L + i; m2.tick(np); }
         assertEquals("no route to targets", m2.stopReason());
     }
 
@@ -163,6 +164,40 @@ class AutoHuntTest {
         m.tick(s);
         assertEquals(0, m.captures());
         assertNotEquals(CaptureOutcome.CAPTURED, m.lastOutcome());
+    }
+
+    @Test void outcomeReportedOnceEvenWhilePaused() {
+        AutoHuntMachine m = new AutoHuntMachine(new SafetyLimits());
+        m.start(0);
+        Sensors s = base();
+        s.targetInThrowRange = true; s.aimed = true;
+        for (int i = 0; i < 5; i++) m.tick(s);
+        s.ownBallState = BallState.CAPTURED;
+        m.tick(s);
+        assertEquals(HuntState.VERIFY_CAPTURE, m.state());
+        s.screenOpen = true;
+        int reported = 0;
+        for (int i = 0; i < 10; i++) { m.tick(s); if (m.consumeOutcome() != null) reported++; }
+        assertEquals(1, reported);
+    }
+
+    @Test void perTargetBudgetSurvivesReselectionAndFailedTargetsAreSkipped() {
+        SafetyLimits l = new SafetyLimits();
+        l.maxBallsPerTarget = 2;
+        AutoHuntMachine m = new AutoHuntMachine(l);
+        m.start(0);
+        Sensors s = base();
+        s.targetInThrowRange = true; s.aimed = true;
+        int thrownAt7 = 0;
+        for (int i = 0; i < 400 && m.running(); i++) {
+            s.nowMillis = i * 50L;
+            s.ownBallState = null;
+            Command c = m.tick(s);
+            if (c.kind() == Command.Kind.THROW) { thrownAt7++; s.ownBallState = BallState.BROKEN_FREE; s.nowMillis += 50; m.tick(s); }
+        }
+        assertEquals(2, thrownAt7, "the same target must not get a fresh ball budget when re-selected");
+        assertTrue(m.blacklisted(7L, 1000));
+        assertFalse(m.blacklisted(7L, AutoHuntMachine.BLACKLIST_MS + 400 * 50L));
     }
 
     @Test void screenOpenPauses() {
