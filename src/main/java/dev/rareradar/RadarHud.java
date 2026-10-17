@@ -55,11 +55,24 @@ public final class RadarHud {
         ctx.getMatrices().translate(cfg.hudX, cfg.hudY, 0);
         ctx.getMatrices().scale(cfg.hudScale, cfg.hudScale, 1);
         int y = 0;
-        if (AutoHunt.active) {
-            String s = "● AUTO " + (AutoHunt.train ? "TRAIN" : "HUNT") + " ACTIVE — " + AutoHunt.status();
-            ctx.fill(-2, -2, tr.getWidth(s) + 2, 10, 0xC0800000);
-            ctx.drawTextWithShadow(tr, s, 0, 0, 0xFFFFFF);
-            y += 13;
+        var ctl = g.controller;
+        if (AutoHunt.active || ctl.sessionEnabled()) {
+            var prof = ctl.profile();
+            String head = "RARERADAR V4 · " + (prof == null ? "?" : prof.displayName) + " · Automation: "
+                    + (AutoHunt.active ? "ACTIVE (" + (AutoHunt.train ? "training" : "hunting") + ")" : "enabled, idle") + " · " + ctl.state();
+            ctx.fill(-2, -2, tr.getWidth(head) + 2, 10, AutoHunt.active ? 0xC0800000 : 0xC0404000);
+            ctx.drawTextWithShadow(tr, head, 0, 0, 0xFFFFFF);
+            y += 11;
+            if (AutoHunt.active) { ctx.drawTextWithShadow(tr, AutoHunt.status() + " · Backspace = STOP", 0, y, 0xFFB0B0); y += 10; }
+            var sess = g.sessions.current();
+            if (sess != null && sess.minutes() >= 1) {
+                String line = String.format(java.util.Locale.ROOT, "Session %s · realised %s (%s/h)",
+                        dev.rareradar.core.report.DashboardText.duration(sess.minutes()), dev.rareradar.core.util.Money.fmt(sess.realisedProfit()),
+                        dev.rareradar.core.util.Money.fmt(sess.realisedProfit() / sess.minutes() * 60));
+                ctx.drawTextWithShadow(tr, line, 0, y, 0xCCCCCC);
+                y += 10;
+            }
+            y += 3;
         }
         List<RadarScanner.Hit> hits = RadarScanner.hits();
         if (RareRadarClient.enabled && Settings.S.hudList && !hits.isEmpty()) {
