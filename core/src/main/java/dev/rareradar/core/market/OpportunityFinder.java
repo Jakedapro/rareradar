@@ -31,6 +31,18 @@ public final class OpportunityFinder {
                         Money.fmt(listing.price), Money.range(e), e.basis()));
     }
 
+    /**
+     * Theoretical resale margin for buying {@code listing} and reselling at the typical confirmed-sale price, after
+     * the seller-side GTS fee: {@code typical × (1 − fee/100) − price}. NaN when the fee or the typical value is
+     * unknown, or when the typical value is not backed by at least MEDIUM-confidence (i.e. confirmed-sale) evidence.
+     */
+    public double netAfterFee(PriceObservation listing, double feePercent, long now) {
+        if (!Double.isFinite(feePercent) || feePercent < 0 || feePercent >= 100) return Double.NaN;
+        Estimate e = val.bucketValue(listing.key(), now);
+        if (!e.known() || e.confidence().ordinal() < Confidence.MEDIUM.ordinal()) return Double.NaN;
+        return e.value() * (1 - feePercent / 100) - listing.price;
+    }
+
     public List<Opportunity> marketWide(long now) {
         List<Opportunity> out = new ArrayList<>();
         for (MarketKey k : db.keys()) {

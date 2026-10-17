@@ -1,6 +1,6 @@
 # Installing RareRadar on Dawn Launcher (macOS, Apple Silicon)
 
-You need an instance with **Minecraft 1.21.1** and **Fabric Loader** (0.17.2 or newer; 0.19.5 is confirmed to load RareRadar alpha.3), plus these mods:
+You need an instance with **Minecraft 1.21.1** and **Fabric Loader** (0.17.2 or newer; 0.19.5 is confirmed to load RareRadar 3.0.0-alpha.3), plus these mods:
 
 | Mod | Why |
 |---|---|

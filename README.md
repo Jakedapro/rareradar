@@ -1,18 +1,20 @@
-# RareRadar V3 — Galaxy Profit Engine
+# RareRadar V4 — Project Autonomy (4.0.0-alpha.1)
 
-Client-side Fabric mod for **Minecraft 1.21.1 + Cobblemon 1.8.x**. It finds rare Pokémon, and it is a data-driven economy assistant for the CobbleGalaxy server that gets more useful as you log real observations.
+Client-side Fabric mod for **Minecraft 1.21.1 + Cobblemon 1.8.x**. It finds rare Pokémon, tracks encounters and GTS prices, and acts as a data-driven hunting and trading assistant for the CobbleGalaxy server.
 
 > **Development status: please read.**
-> * **The mod builds:** GitHub Actions (`.github/workflows/build.yml`) runs a real Loom build against Minecraft 1.21.1 and the Cobblemon 1.8.2 jar, plus the 102 core unit tests, and both pass. The jar is available as a CI artifact.
-> * **It has not yet been launched in Minecraft.** Every in-game behaviour (mixins, HUD, dashboard, bridge, AutoHunt) still needs testing. Start in single-player.
+> * **Automated tests (passing in CI):** the core unit tests (187) and a real Loom build against Minecraft 1.21.1 and Cobblemon 1.8.2. CI also checks that the jar contains the knowledge datasets and the mechanics classes.
+> * **Verified in-game by the player:** encounter tracking and GTS capture (screen and chat). Captured rows are all listings so far, since no sales were observed yet.
+> * **Implemented but not yet verified in-game:** the V4 automation controller, server profiles, Knowledge, Automation and Market pages, capture chance display, assisted trade alerts and the V4 HUD header.
 
 ## Server rules first
 
-**CobbleGalaxy's rules prohibit macros, autoclickers and "any other automation", and ask players to check with staff when unsure.**
-
-* **AutoHunt and AutoTrain** are therefore refused on CobbleGalaxy (hard-coded) and on every multiplayer server not explicitly on your private allowlist. They are meant for single-player and your own test servers.
-* **Everything else** — radar, HUD, dashboard, calculators, and the read-only CobbleGalaxy bridge — only *displays* information your client already received or you typed in. It never sends packets, runs commands, clicks menus or teleports.
-* **Whether staff allow radar/HUD client mods is not documented.** Ask CobbleGalaxy staff before using RareRadar there.
+* **Automation (AutoHunt/AutoTrain)** runs only through the central controller, and only on an authorised server profile.
+  * **CobbleGalaxy** is included as authorised because you stated that staff granted permission. It still needs enabling every session.
+  * Other multiplayer servers need an explicit, recorded confirmation.
+  * Backspace is the emergency stop.
+* **Trading is never automated.** Assisted mode only posts chat alerts, and only when backed by confirmed sales; you decide and click yourself.
+* **Everything else** (radar, HUD, dashboard, calculators, and the read-only CobbleGalaxy bridge) only *displays* information your client already received or you typed in.
 
 ## Installation
 

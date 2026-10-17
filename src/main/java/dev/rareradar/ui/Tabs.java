@@ -942,6 +942,7 @@ final class Tabs {
                     + (ev == null ? "?" : String.format(Locale.ROOT, "%d/%d/%d/%d/%d/%d", ev.hp(), ev.attack(), ev.defence(), ev.specialAttack(), ev.specialDefence(), ev.speed()))
                     + " · exp group " + sp.experienceGroup() + " · egg groups " + sp.eggGroups()));
             out.add(Line.t("Abilities: " + sp.abilities() + (sp.forms().isEmpty() ? "" : " · forms: " + sp.forms().stream().map(f -> f.name()).toList())));
+            capture(out, sp, kb.spawnsFor(sp.id()));
             for (var e : kb.evolutionsFrom(sp.id())) out.add(Line.t("Evolves → " + e.result() + " (" + e.variant() + ") " + (e.requirementsJson() == null ? "" : e.requirementsJson())));
             var spawns = kb.spawnsFor(sp.id());
             out.add(Line.h("Spawn entries (" + spawns.size() + ") — raw weights, not probabilities"));
@@ -951,6 +952,27 @@ final class Tabs {
                         s.biomes(), s.conditionJson() == null ? "" : " · " + (s.conditionJson().length() > 90 ? s.conditionJson().substring(0, 90) + "…" : s.conditionJson()))));
             }
             out.add(Line.dim("  source: " + sp.sourceFile()));
+        }
+
+        /** Per-throw capture chance from Cobblemon 1.8.2's formula under stated scenarios (no live HP/status is read). */
+        private static void capture(List<Line> out, dev.rareradar.core.knowledge.Species sp, List<dev.rareradar.core.knowledge.SpawnEntry> spawns) {
+            var st = sp.baseStats();
+            if (sp.catchRate() == null || st == null) return;
+            int level = 0;
+            for (var s : spawns) {
+                var m = java.util.regex.Pattern.compile("(\\d+)").matcher(String.valueOf(s.level()));
+                if (m.find()) { int l = Integer.parseInt(m.group(1)); level = level == 0 ? l : Math.min(level, l); }
+            }
+            if (level <= 0) level = 20;
+            var rows = dev.rareradar.core.mechanics.CaptureAdvisor.advise(sp.catchRate(), st.hp(), level);
+            out.add(Line.h("Capture chance per throw at level " + level + " (Cobblemon 1.8.2 formula; Pokédex criticals ignored)"));
+            for (var sc : dev.rareradar.core.mechanics.CaptureAdvisor.Scenario.values()) {
+                StringBuilder b = new StringBuilder("  " + sc.label + ":");
+                for (var r : rows) if (r.scenario() == sc)
+                    b.append(String.format(Locale.ROOT, "  %s %.1f%% (~%.1f balls)", r.ball().replace("_ball", ""), 100 * r.probability(), r.expectedBalls()));
+                out.add(Line.t(b.toString()));
+            }
+            out.add(Line.dim("  Model, not measured: the server may change capture settings. Wild HP/status are not visible, so these are scenarios."));
         }
 
         private static void ev(List<Line> out, Galaxy g, dev.rareradar.core.knowledge.KnowledgeBase kb) {

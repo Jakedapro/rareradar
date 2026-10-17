@@ -25,16 +25,16 @@ public final class TradeAssistant {
         Galaxy g = Galaxy.get();
         if (g == null || g.cfg.tradingMode != Mode.ASSISTED || p.kind != PriceObservation.Kind.LISTING) return;
         Opportunity o = g.opportunities.checkListing(p, System.currentTimeMillis());
-        if (o == null || !alerted.add(p.id) || alertsThisSession >= 30) return;
-        alertsThisSession++;
-        var typical = g.valuator.bucketValue(p.key(), System.currentTimeMillis());
+        if (o == null || alerted.contains(p.id) || alertsThisSession >= 30) return;
         String fee;
-        if (Double.isFinite(g.cfg.gtsFeePercent) && typical.known()) {
-            // Gross opportunity = typical sale × (1 − fee) − asking price. Theoretical: resale is not guaranteed.
-            double net = typical.value() * (1 - g.cfg.gtsFeePercent / 100) - p.price;
-            if (net <= 0) return; // not an opportunity once the fee is counted
+        if (Double.isFinite(g.cfg.gtsFeePercent)) {
+            // Theoretical: typical confirmed sale × (1 − fee) − asking price. Resale is not guaranteed.
+            double net = g.opportunities.netAfterFee(p, g.cfg.gtsFeePercent, System.currentTimeMillis());
+            if (!(net > 0)) return; // not an opportunity once the fee is counted
             fee = String.format(java.util.Locale.ROOT, " Theoretical margin after your %.1f%% fee estimate: %s.", g.cfg.gtsFeePercent, dev.rareradar.core.util.Money.fmt(net));
         } else fee = " (GTS fee unknown — not deducted)";
+        alerted.add(p.id);
+        alertsThisSession++;
         RareRadarClient.LOG.info("[Trade assistant] {} — {}", o.subject(), o.explanation());
         var player = MinecraftClient.getInstance().player;
         if (player != null) player.sendMessage(Text.literal("§6[RareRadar] Possible underpriced listing: " + o.subject()

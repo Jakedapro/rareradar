@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.0.0-alpha.1 — "Project Autonomy" (in progress)
+## 4.0.0-alpha.1 — "Project Autonomy"
 
 ### Added
 - **Knowledge base:** versioned datasets built from the Cobblemon 1.8.2 data files, with provenance on every record (`tools/knowledge/build_knowledge.py`).
@@ -21,10 +21,16 @@
 - **Estimates:**
   - Hunting value estimates from your own encounters and market data, including shiny probability with Cobblemon's documented 1/8192 default as a prior.
   - **EV training planner**, using the verified EV yields.
-- **Assisted trading (Mode B):** optional chat alerts for possibly underpriced new listings, with a fee-adjusted theoretical margin. **Purchasing is never automated.**
+- **Capture mechanics** (`core/mechanics`, `docs/MECHANICS.md`): a port of Cobblemon 1.8.2's capture calculator, critical captures and all ball multipliers, plus stat and experience formulas.
+  - The Knowledge page shows the per-throw chance and expected balls for Poké, Great and Ultra Balls under three named scenarios.
+  - Wild HP, status and Pokédex count are not readable on the client, so no single "true" percentage is claimed.
+- **Assisted trading (Mode B):** optional chat alerts for possibly underpriced new listings.
+  - Requires MEDIUM or higher confirmed-sale evidence; asking prices alone never trigger an alert (tested).
+  - Shows the margin after your GTS fee: typical sale × (1 − fee) − price. An unknown fee is never assumed to be 0.
+  - **Purchasing is never automated.**
 - **V4 HUD header:** server profile, automation state, task status, session realised profit per hour.
 - **Automation** dashboard page.
-- **CI:** fails if the jar lacks the knowledge datasets, `fabric.mod.json` or the mixin config.
+- **CI:** fails if the jar lacks the knowledge datasets, the mechanics classes, `fabric.mod.json` or the mixin config.
 
 ### Changed
 - AutoHunt/AutoTrain run only through the controller, with a resource pre-check before hunting; capture outcomes feed the controller's error-stop.
