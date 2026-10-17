@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — V4 knowledge database
+
+### Added
+- **Offline Cobblemon 1.8.2 knowledge base** (`assets/rareradar/knowledge/`, 527 KB gzip): 1025 species with 396 forms, 5044 spawn entries from 1591 `spawn_pool_world` files, 28 spawn presets and 192 Cobblemon biome tags, extracted from Cobblemon commit `643bf906` with per-record provenance and an MPL-2.0 `NOTICE`. Not validated against CobbleGalaxy's server-side overrides.
+- `tools/knowledge/build_knowledge.py` regenerates it; `core/.../knowledge/KnowledgeBase` loads it fail-soft with sha256 checks and answers species, form, evolution, label, spawn and biome-tag queries. See `docs/KNOWLEDGE_BASE.md`.
+
 ## 3.0.0-alpha.3 — data quality from the first live capture
 
 The first live capture on CobbleGalaxy (alpha.2) recorded 784 asking prices in about 4 minutes: 728 from the GTS screen and 56 from chat announcements. All were correctly classified as listings, with 0 sales.

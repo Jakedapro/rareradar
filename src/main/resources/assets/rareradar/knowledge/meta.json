@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "cobblemonVersion": "1.8.2",
+  "sourceRepo": "https://gitlab.com/cable-mc/cobblemon.git",
+  "sourceCommit": "643bf9068b51c829316429916373e5aa9864b8b9",
+  "commitVerified": true,
+  "license": "MPL-2.0",
+  "confidence": "verified",
+  "confidenceNote": "Extracted from the official Cobblemon data files of the named commit. Not validated against any server's datapack overrides (e.g. CobbleGalaxy).",
+  "generatedAt": "2026-10-17T13:35:05Z",
+  "generator": "tools/knowledge/build_knowledge.py",
+  "counts": {
+    "species": 1025,
+    "forms": 396,
+    "spawnFiles": 1591,
+    "spawns": 5044,
+    "spawnPresets": 28,
+    "unresolvedPresets": 0,
+    "biomeTags": 192
+  },
+  "datasets": {
+    "biome_tags.json.gz": {
+      "sha256": "041e9cb379afd6fb7ea50e67d57d75e95ec244dd35b4a8d16c18c397534e879d",
+      "bytes": 9636,
+      "uncompressedBytes": 118098
+    },
+    "spawns.json.gz": {
+      "sha256": "4ce7263ca8bd7acd87b724552a412967d69299eab403f6ee380e3f4cccba94c5",
+      "bytes": 172652,
+      "uncompressedBytes": 4852922
+    },
+    "species.json.gz": {
+      "sha256": "a2fcd1aa13033dd3419eaf803bb2c8c3b2039395da30c39b47d72f800684df58",
+      "bytes": 344556,
+      "uncompressedBytes": 3037946
+    }
+  }
+}

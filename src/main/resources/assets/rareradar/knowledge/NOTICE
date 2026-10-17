@@ -1,0 +1,12 @@
+RareRadar knowledge datasets
+============================
+
+The files species.json.gz, spawns.json.gz and biome_tags.json.gz in this folder are derived
+from the data files of Cobblemon (https://gitlab.com/cable-mc/cobblemon, by cable-mc and the
+Cobblemon contributors), version 1.8.2, commit 643bf9068b51c829316429916373e5aa9864b8b9, path common/src/main/resources/data/cobblemon/.
+
+Cobblemon is licensed under the Mozilla Public License, Version 2.0 (MPL-2.0).
+A copy of the license is available at https://mozilla.org/MPL/2.0/ and in the Cobblemon
+repository (LICENSE). The values in these datasets were extracted and reformatted (re-keyed,
+filtered, gzip-compressed) by tools/knowledge/build_knowledge.py; they were not altered.
+The source form of the data is available from the repository and commit named above.
