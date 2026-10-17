@@ -334,7 +334,23 @@ final class Tabs {
             out.add(Line.blank());
             DashboardText.opportunities(out, g.opportunities.marketWide(now), 8);
             out.add(Line.blank());
+            stsVsGts(out, g, now);
+            out.add(Line.blank());
             DashboardText.marketSummary(out, g.market, g.valuator, now, 30);
+        }
+    }
+
+    /** STS (instant) vs GTS (confirmed sales after fee) per bucket. */
+    static void stsVsGts(List<Line> out, Galaxy g, long now) {
+        var all = dev.rareradar.core.market.SellChannelAdvisor.compareAll(g.market, g.cfg.gtsFeePercent, now);
+        out.add(Line.h("STS vs GTS  (STS = your logged server payouts · GTS = confirmed sales × (1 − fee); asking prices never count)"));
+        if (all.isEmpty()) { out.add(Line.dim("  Log STS payouts (kind STS) and confirmed sales (kind SALE) to compare channels.")); return; }
+        if (!Double.isFinite(g.cfg.gtsFeePercent)) out.add(Line.warn("  GTS fee unknown — set it on the Config page; GTS net can't be computed without it."));
+        for (int i = 0; i < Math.min(10, all.size()); i++) {
+            var c = all.get(i);
+            String line = String.format(Locale.ROOT, "  %-22s %-7s STS %s · GTS net %s (%d sales%s) — %s", c.key(), c.verdict(), Money.fmt(c.stsPayout()),
+                    Money.fmt(c.gtsNet()), c.sales(), Double.isFinite(c.expectedWaitDays()) ? String.format(Locale.ROOT, ", ~%.1f d/sale", c.expectedWaitDays()) : "", c.reason());
+            out.add(c.verdict() == dev.rareradar.core.market.SellChannelAdvisor.Verdict.GTS ? Line.good(line) : Line.t(line));
         }
     }
 
@@ -418,6 +434,8 @@ final class Tabs {
             HuntPointGoal goal = g.cfg.huntGoal;
             DashboardText.huntGoal(out, goal, goal.project(g.hunts.completed()));
             out.add(Line.blank());
+            shinyHunting(out, g, sel);
+            out.add(Line.blank());
             out.add(Line.h("COMPLETION HISTORY (" + g.hunts.completed().size() + ")"));
             List<HuntObjective> done = g.hunts.completed();
             for (int i = done.size() - 1, k = 0; i >= 0 && k < 8; i--, k++) {
@@ -425,6 +443,51 @@ final class Tabs {
                 out.add(Line.dim("  " + (h.title.isBlank() ? h.species : h.title) + " · " + (h.rewardHuntPoints == null ? "?" : Math.round(h.rewardHuntPoints)) + " HP"));
             }
         }
+    }
+
+    private static final Map<String, java.util.concurrent.CompletableFuture<Map<String, Double>>> MODEL_SHARE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Shiny-hunt plan for the selected hunt's species (or the radar's top target), plus the overall dry streak. */
+    static void shinyHunting(List<Line> out, Galaxy g, HuntObjective sel) {
+        double rate = g.cfg.shinyRate;
+        out.add(Line.h(String.format(Locale.ROOT, "SHINY HUNTING  (1 in %.0f per Pokémon%s)", rate, rate == 8192 ? ", Cobblemon default — the server may differ" : ", from your config")));
+        var log = g.encounters.all();
+        var streak = dev.rareradar.core.hunting.ShinyHuntPlanner.streak(log, null, rate);
+        out.add(Line.t("  " + streak.note()));
+        String species = sel != null && sel.species != null ? sel.species : null;
+        if (species == null) { out.add(Line.dim("  Select a hunt with a species (◀ ▶) to see where to shiny-hunt it.")); return; }
+        Map<String, Double> model = Map.of();
+        var kb = g.knowledge;
+        if (kb.isLoaded()) {
+            if (MODEL_SHARE.size() > 64) MODEL_SHARE.clear();
+            var f = MODEL_SHARE.computeIfAbsent(species.toLowerCase(Locale.ROOT), sp -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                Map<String, Double> m = new HashMap<>();
+                for (var r : dev.rareradar.core.knowledge.SpawnProbability.bestBiomes(kb, sp, dev.rareradar.core.knowledge.SpawnProbability.Context.openSky(null, null), 400))
+                    m.merge(r.biomeId(), r.share().share(), Math::max);
+                return m;
+            }));
+            if (f.isDone() && !f.isCompletedExceptionally()) model = f.join();
+            else out.add(Line.dim("  computing spawn model…"));
+        }
+        Map<String, Double> hours = new HashMap<>();
+        for (String b : g.exposure.biomes()) hours.put(b, g.exposure.hours(b));
+        var opts = dev.rareradar.core.hunting.ShinyHuntPlanner.rank(species, log, hours, model, rate);
+        // Only visited biomes have a measured rate; show those plus the top few model suggestions.
+        int shown = 0, unvisited = 0;
+        for (var o : opts) {
+            if (o.rateKnown() && shown < 5) {
+                shown++;
+                out.add(Line.t(String.format(Locale.ROOT, "  %-30s %.0f enc/h × %.1f%% %s → ~%.0f h expected · 50%% by %.0f h · 90%% by %.0f h",
+                        o.where(), o.encountersPerHour(), 100 * o.share(), o.shareSource().name().toLowerCase(Locale.ROOT), o.expectedHours(), o.hours50(), o.hours90())));
+            } else if (!o.rateKnown() && unvisited < 3) {
+                unvisited++;
+                out.add(Line.dim(String.format(Locale.ROOT, "  %-30s %.2f%% of spawns (%s) — spend 15+ min there to measure its encounter rate",
+                        o.where(), 100 * o.share(), o.shareSource().name().toLowerCase(Locale.ROOT))));
+            }
+        }
+        if (opts.isEmpty()) out.add(Line.dim("  No sightings of " + species + " and no ordinary natural spawn in the model."));
+        var sp = dev.rareradar.core.hunting.ShinyHuntPlanner.streak(log, species, rate);
+        out.add(Line.dim("  " + species + ": " + sp.sinceLastShiny() + " seen since the last shiny " + species + " (" + sp.shiniesSeen() + " shiny seen in total)."));
     }
 
     static String ago(long t) {
@@ -775,7 +838,8 @@ final class Tabs {
                     r.wShiny, r.wLegendary, r.wMythical, r.wSpecial, r.wDemand, r.wWatchlist)));
             out.add(Line.h("ECONOMIC INPUTS"));
             out.add(Line.t("Hunt Point value: " + Money.fmt(c.huntPointValue) + " · token value: " + Money.fmt(c.tokenValue) + " · travel " + c.travelMinutes + " min · GTS fee "
-                    + (Double.isFinite(c.gtsFeePercent) ? c.gtsFeePercent + "%" : "unknown (enter it if you know it; the server doesn't document one)")));
+                    + (Double.isFinite(c.gtsFeePercent) ? c.gtsFeePercent + "%" : "unknown (enter it if you know it; the server doesn't document one)")
+                    + String.format(Locale.ROOT, " · shiny odds 1/%.0f (shinyRate in v3.json)", c.shinyRate)));
             out.add(Line.h("AUTOMATION LIMITS"));
             out.add(Line.t(String.format(Locale.ROOT, "Limits: %d min/run · %d balls/run · %d balls/target · stop below %.0f HP", c.safety.maxRunMinutes, c.safety.maxBallsPerRun, c.safety.maxBallsPerTarget, c.safety.minHealth)));
             out.add(Line.dim("Per-server permissions, enable/pause/stop and the audit log are on the Automation page."));

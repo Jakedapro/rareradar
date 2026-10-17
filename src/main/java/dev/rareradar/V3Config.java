@@ -43,6 +43,8 @@ public final class V3Config {
     public TradeAssistant.Mode tradingMode = TradeAssistant.Mode.OBSERVE;
     /** Your estimate of the GTS sales fee in percent (unknown/NaN until you enter it; CobbleGalaxy does not document one). */
     public double gtsFeePercent = Double.NaN;
+    /** Shiny odds 1 in N used by shiny-hunt planning. Cobblemon 1.8.2 default 8192; change it if your server documents another. */
+    public double shinyRate = 8192;
 
     // Economics inputs (user-entered; NaN = unknown)
     public double huntPointValue = Double.NaN;
@@ -78,6 +80,7 @@ public final class V3Config {
         if (!Double.isNaN(tokenValue) && (!Double.isFinite(tokenValue) || tokenValue < 0)) tokenValue = Double.NaN;
         if (!(travelMinutes >= 0) || travelMinutes > 600) travelMinutes = 0;
         if (tradingMode == null) tradingMode = TradeAssistant.Mode.OBSERVE;
+        if (!(shinyRate >= 1 && shinyRate <= 1_000_000)) shinyRate = 8192;
         if (!Double.isNaN(gtsFeePercent) && !(gtsFeePercent >= 0 && gtsFeePercent <= 50)) gtsFeePercent = Double.NaN;
         if (privateServerAllowlist == null) privateServerAllowlist = new LinkedHashSet<>();
         if (rarity == null) rarity = new RarityConfig();
