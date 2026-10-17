@@ -114,6 +114,17 @@ For every mechanic, the table records: feature, command, how it works, rewards/c
 3. Breeding follows mainline Gen 6+ rules beyond what is documented: 3 inherited IVs without a Destiny Knot, Everstone passes nature, and with two Power items one is chosen at random.
 4. The Vote Party shiny multiplier applies to natural spawns server-wide.
 
+## 4b. Findings from the CobbleGalaxy 2.5.0 modpack (supplied by the user)
+
+See `docs/COBBLEGALAXY_CLIENT_BRIDGE.md`. Confidence: **Verified (modpack files)**, meaning these facts were read directly from the official modpack files.
+
+* Modpack: Minecraft 1.21.1, **Fabric Loader 0.19.3**, plus the CobbleGalaxy client companion mod 2.5.0.
+* The hunts overlay is titled "Pinned Hunts", and the shortcut tooltip says "Today's Pokémon hunts". Hunts are therefore **daily**, and the client receives the species, aspects, details and deadline of *pinned* hunts.
+* The GTS protocol has views BROWSE / SELL / MINE / EXPIRED / HISTORY / LOOKUP and per-player listing limits (`listingsUsed`/`listingsMax`, `expiredUsed`/`expiredMax`). The actual limit values are sent at runtime.
+* PokéBuilder sends real token costs at runtime: per IV point, per EV point, per nature/ability/ball choice, shiny toggle, and level stepper. RareRadar captures these instead of guessing.
+* Dex Rewards sends tier percentages per dex "type" view, with claimed/claimable flags and a caught bitset. This turns the Pokédex milestone thresholds from Unknown into observable-at-runtime.
+* The Vote menu sends `partyVotes`/`partyTarget` (the wiki reports 200 as the Vote Party target).
+
 ## 5. Unknown (must come from the user's own observations)
 
 GTS fees/limits; STS prices; Hunt Point amounts per tier; hunt refresh timers; Hunt XP/levels; Challenge/Global hunts; Pokédex milestone thresholds; PokéBuilder per-option token costs; Hunt Point → token exchange rate; boss spawn rate; base shiny rate; `/wild` behaviour; Cobblemon version; whether staff allow radar/HUD client mods.
