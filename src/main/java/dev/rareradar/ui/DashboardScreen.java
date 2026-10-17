@@ -20,8 +20,8 @@ public class DashboardScreen extends Screen {
     private static int lastTab;
     private final List<Tab> tabs = List.of(new Tabs.Overview(), new Tabs.Radar(), new Tabs.Economy(), new Tabs.Market(),
             new Tabs.Hunts(), new Tabs.Breeding(), new Tabs.Dex(), new Tabs.Spawns(), new Tabs.Inventory(),
-            new Tabs.History(), new Tabs.Automation(), new Tabs.Config());
-    private int tab = Math.min(lastTab, 11);
+            new Tabs.History(), new Tabs.Knowledge(), new Tabs.Automation(), new Tabs.Config());
+    private int tab = Math.min(lastTab, 12);
     private int scroll;
     private int contentTop;
     private final List<dev.rareradar.core.report.Line> lines = new ArrayList<>();

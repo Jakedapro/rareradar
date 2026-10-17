@@ -874,4 +874,90 @@ final class Tabs {
             }
         }
     }
+
+    // =================================================================== Knowledge (V4)
+    static final class Knowledge implements Tab {
+        private TextFieldWidget query, current, target;
+        private static String lookup = "";
+        private static dev.rareradar.core.training.EvTrainingPlanner.Stat stat = dev.rareradar.core.training.EvTrainingPlanner.Stat.ATTACK;
+        private static int cur = 0, tgt = 252;
+
+        public String name() { return "Knowledge"; }
+
+        public int widgets(DashboardScreen s, int x, int y, int w) {
+            query = s.field(x, y, 140, "species (name or dex #)");
+            query.setText(lookup);
+            s.button(x + 144, y, 60, "Look up", () -> { lookup = query.getText().trim(); s.rebuild(); });
+            ButtonWidget[] b = new ButtonWidget[1];
+            b[0] = s.button(x + 214, y, 130, "EV stat: " + stat, () -> {
+                stat = dev.rareradar.core.training.EvTrainingPlanner.Stat.values()[(stat.ordinal() + 1) % 6];
+                b[0].setMessage(Text.literal("EV stat: " + stat));
+            });
+            current = s.field(x + 348, y, 50, "have");
+            current.setText(Integer.toString(cur));
+            target = s.field(x + 402, y, 50, "goal");
+            target.setText(Integer.toString(tgt));
+            s.button(x + 456, y, 60, "Plan", () -> { cur = Parse.integer(current.getText(), 0); tgt = Parse.integer(target.getText(), 252); s.rebuild(); });
+            return 22;
+        }
+
+        public void lines(List<Line> out) {
+            Galaxy g = g();
+            var kb = g.knowledge;
+            if (!kb.isLoaded()) { out.add(Line.warn("Knowledge base not available: " + kb.errors())); return; }
+            var pv = kb.provenance();
+            out.add(Line.dim(String.format(Locale.ROOT, "Source: %s %s @ %s (%s) · %d species · %d spawn entries · facts are Cobblemon defaults; the server may override them",
+                    pv.name(), pv.version(), pv.commit() == null ? "?" : pv.commit().substring(0, Math.min(10, pv.commit().length())), pv.license(), kb.allSpecies().size(), kb.allSpawns().size())));
+            if (!lookup.isBlank()) {
+                var sp = lookup.matches("\\d+") ? kb.byDex(Integer.parseInt(lookup)) : kb.species(lookup);
+                if (sp == null) out.add(Line.warn("No species \"" + lookup + "\" in the 1.8.2 data."));
+                else species(out, kb, sp);
+                out.add(Line.blank());
+            }
+            out.add(Line.h("CAN SPAWN HERE (" + RadarScanner.currentBiome + ") — biome rules only; light, time, height and other conditions not checked"));
+            var here = kb.speciesSpawnableInBiome(RadarScanner.currentBiome, RadarScanner.currentBiomeTags);
+            out.add(Line.t(here.isEmpty() ? "(none or unknown biome)" : here.size() + " species: " + String.join(", ", here.subList(0, Math.min(40, here.size()))) + (here.size() > 40 ? " …" : "")));
+            List<String> rares = new ArrayList<>();
+            for (String id : here) { var sp = kb.species(id); if (sp != null && (sp.isLegendary() || sp.isMythical())) rares.add(sp.name()); }
+            if (!rares.isEmpty()) out.add(Line.good("Legendary/mythical spawn entries for this biome: " + String.join(", ", rares)));
+            out.add(Line.blank());
+            ev(out, g, kb);
+        }
+
+        private static void species(List<Line> out, dev.rareradar.core.knowledge.KnowledgeBase kb, dev.rareradar.core.knowledge.Species sp) {
+            out.add(Line.h("#" + sp.dex() + " " + sp.name() + " (" + sp.id() + ")" + (sp.labels().isEmpty() ? "" : " · " + String.join(", ", sp.labels()))));
+            var st = sp.baseStats();
+            out.add(Line.t("Type " + sp.primaryType() + (sp.secondaryType() == null ? "" : "/" + sp.secondaryType())
+                    + (st == null ? "" : String.format(Locale.ROOT, " · base %d/%d/%d/%d/%d/%d (total %d)", st.hp(), st.attack(), st.defence(), st.specialAttack(), st.specialDefence(), st.speed(), st.total()))));
+            var ev = sp.evYield();
+            out.add(Line.t("Catch rate " + (sp.catchRate() == null ? "?" : sp.catchRate()) + " · EV yield "
+                    + (ev == null ? "?" : String.format(Locale.ROOT, "%d/%d/%d/%d/%d/%d", ev.hp(), ev.attack(), ev.defence(), ev.specialAttack(), ev.specialDefence(), ev.speed()))
+                    + " · exp group " + sp.experienceGroup() + " · egg groups " + sp.eggGroups()));
+            out.add(Line.t("Abilities: " + sp.abilities() + (sp.forms().isEmpty() ? "" : " · forms: " + sp.forms().stream().map(f -> f.name()).toList())));
+            for (var e : kb.evolutionsFrom(sp.id())) out.add(Line.t("Evolves → " + e.result() + " (" + e.variant() + ") " + (e.requirementsJson() == null ? "" : e.requirementsJson())));
+            var spawns = kb.spawnsFor(sp.id());
+            out.add(Line.h("Spawn entries (" + spawns.size() + ") — raw weights, not probabilities"));
+            for (int i = 0; i < Math.min(8, spawns.size()); i++) {
+                var s = spawns.get(i);
+                out.add(Line.dim(String.format(Locale.ROOT, "  %s · %s · lvl %s · weight %s · %s · biomes %s%s", s.id(), s.bucket(), s.level(), s.weight(), s.positionType(),
+                        s.biomes(), s.conditionJson() == null ? "" : " · " + (s.conditionJson().length() > 90 ? s.conditionJson().substring(0, 90) + "…" : s.conditionJson()))));
+            }
+            out.add(Line.dim("  source: " + sp.sourceFile()));
+        }
+
+        private static void ev(List<Line> out, Galaxy g, dev.rareradar.core.knowledge.KnowledgeBase kb) {
+            double hours = g.exposure.totalHours();
+            Map<String, Double> rates = new HashMap<>();
+            if (hours > 0) for (var e : EncounterStats.speciesFrequency(g.encounters.all())) rates.put(e.getKey(), e.getValue() / hours);
+            var plan = dev.rareradar.core.training.EvTrainingPlanner.plan(kb, stat, cur, tgt, 0, rates);
+            out.add(Line.h("EV TRAINING: " + stat + " " + plan.current() + " → " + plan.target() + " (" + plan.remaining() + " to go)"));
+            if (plan.candidates().isEmpty()) out.add(Line.dim("No Pokémon you have encountered yields " + stat + " EVs yet."));
+            for (int i = 0; i < Math.min(6, plan.candidates().size()); i++) {
+                var c = plan.candidates().get(i);
+                out.add(Line.t(String.format(Locale.ROOT, "  %s: %d EV per KO × %.1f seen/h = %.1f EV/h", c.name(), c.evPerKo(), c.encountersPerHour(), c.evsPerHour())));
+            }
+            if (Double.isFinite(plan.hoursForBest())) out.add(Line.good(String.format(Locale.ROOT, "Estimated time with the best target: %.1f h", plan.hoursForBest())));
+            for (String a : plan.assumptions()) out.add(Line.dim("  assumes: " + a));
+        }
+    }
 }

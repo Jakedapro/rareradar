@@ -58,6 +58,8 @@ public final class RadarScanner {
     public static long localSince = System.currentTimeMillis();
     public static String currentBiome = "unknown";
     public static TimeBucket currentTime = TimeBucket.UNKNOWN;
+    /** Tags of the current biome ("#namespace:path"), refreshed when the biome changes. */
+    public static java.util.Set<String> currentBiomeTags = java.util.Set.of();
     private static int teleportNoticeIn = -1;
 
     // Benchmarks (exposed on the dashboard)
@@ -102,7 +104,14 @@ public final class RadarScanner {
         long now = System.currentTimeMillis();
         if (tickCounter % 40 == 0 || activeHunts.isEmpty()) activeHunts = g.hunts.active(now);
         BlockPos bp = client.player.getBlockPos();
-        currentBiome = client.world.getBiome(bp).getKey().map(k -> k.getValue().toString()).orElse("unknown");
+        var biomeEntry = client.world.getBiome(bp);
+        String biome = biomeEntry.getKey().map(k -> k.getValue().toString()).orElse("unknown");
+        if (!biome.equals(currentBiome)) {
+            java.util.Set<String> tags = new java.util.HashSet<>();
+            biomeEntry.streamTags().forEach(t -> tags.add("#" + t.id()));
+            currentBiomeTags = tags;
+        }
+        currentBiome = biome;
         currentTime = TimeBucket.of(client.world.getTimeOfDay());
         g.exposure.add(currentBiome, currentTime, g.cfg.scanIntervalTicks / 20.0);
         g.sessions.touch(now);

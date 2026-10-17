@@ -54,6 +54,8 @@ public final class Galaxy {
     public final OpportunityFinder opportunities;
     public final RarityEngine rarity;
     private volatile PriceModel model;
+    /** Verified Cobblemon 1.8.2 knowledge (loaded in the background; empty until ready or on failure). */
+    public volatile dev.rareradar.core.knowledge.KnowledgeBase knowledge = dev.rareradar.core.knowledge.KnowledgeBase.empty("loading");
     public final dev.rareradar.core.automation.ServerProfiles profiles;
     public final dev.rareradar.core.automation.AutomationController controller;
     public final dev.rareradar.core.automation.TaskStore tasks;
@@ -102,6 +104,17 @@ public final class Galaxy {
                 o -> valuator.demand(o.species, o.form, System.currentTimeMillis()),
                 this::dexMissing);
         retrainModelAsync();
+        Thread kt = new Thread(() -> {
+            long t0 = System.nanoTime();
+            var kb = dev.rareradar.core.knowledge.KnowledgeBase.loadFromClasspath(Galaxy.class.getClassLoader());
+            knowledge = kb;
+            if (kb.isLoaded()) Log.info(String.format("Knowledge base: %d species, %d spawn entries (Cobblemon %s @ %s) in %d ms",
+                    kb.allSpecies().size(), kb.allSpawns().size(), kb.provenance().version(), kb.provenance().commit(), (System.nanoTime() - t0) / 1_000_000));
+            else Log.warn("Knowledge base unavailable: " + kb.errors());
+        }, "RareRadar-Knowledge");
+        kt.setDaemon(true);
+        kt.setPriority(Thread.MIN_PRIORITY);
+        kt.start();
         Log.info("RareRadar V3 data: " + market.size() + " prices, " + encounters.all().size() + " encounters, "
                 + hunts.all().size() + " hunts, " + sessions.history().size() + " sessions");
     }
