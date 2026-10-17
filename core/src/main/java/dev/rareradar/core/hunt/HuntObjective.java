@@ -32,6 +32,10 @@ public final class HuntObjective {
     public Long deadline;              // epoch millis, null = none/unknown
     public Long completedAt;
     public boolean abandoned;
+    public long lastSeen;              // overlay hunts: last time the server's overlay listed it
+
+    /** Overlay hunts that vanished from the overlay without a deadline are considered stale after this long. */
+    public static final long OVERLAY_STALE_MS = 36L * 3600_000L;
 
     public static HuntObjective manual(String title, String species, int required, long now) {
         HuntObjective h = new HuntObjective();
@@ -43,7 +47,10 @@ public final class HuntObjective {
     }
 
     public int remaining() { return Math.max(0, required - progress); }
-    public boolean active(long now) { return completedAt == null && !abandoned && (deadline == null || deadline > now); }
+    public boolean active(long now) {
+        if (completedAt != null || abandoned || (deadline != null && deadline <= now)) return false;
+        return source != Source.OVERLAY || lastSeen <= 0 || now - lastSeen < OVERLAY_STALE_MS;
+    }
     public boolean requiresShiny() { return aspects.stream().anyMatch(a -> a.equalsIgnoreCase("shiny")); }
 
     /** Whether a seen Pokémon counts toward this hunt (species + required aspects such as shiny). */

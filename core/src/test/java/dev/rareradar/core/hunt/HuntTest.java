@@ -58,6 +58,18 @@ class HuntTest {
         assertEquals(1, new HuntTracker(dir.resolve("h.jsonl"), AsyncWriter.inline()).completed().size());
     }
 
+    @Test void overlayKeyIgnoresProgressAndStaleHuntsExpire() {
+        HuntTracker t = new HuntTracker(dir.resolve("k.jsonl"), AsyncWriter.inline());
+        t.syncOverlay(List.of(OverlayHuntParser.parse("Daily", "Catch Zubat (1/3)", "zubat", List.of(), List.of(), 0, NOW)), NOW);
+        t.syncOverlay(List.of(OverlayHuntParser.parse("Daily", "Catch Zubat (2/3)", "zubat", List.of(), List.of(), 0, NOW + 1)), NOW + 1);
+        assertEquals(1, t.all().size());
+        assertEquals(2, t.all().get(0).progress);
+        assertEquals(1, t.active(NOW + 1000).size());
+        assertEquals(0, t.active(NOW + HuntObjective.OVERLAY_STALE_MS + 10).size(), "unpinned overlay hunt goes stale");
+        HuntObjective manual = HuntObjective.manual("m", "x", 1, NOW);
+        assertTrue(manual.active(NOW + HuntObjective.OVERLAY_STALE_MS * 10), "manual hunts never go stale");
+    }
+
     @Test void manualProgress() {
         HuntTracker t = new HuntTracker(dir.resolve("h.jsonl"), AsyncWriter.inline());
         HuntObjective h = HuntObjective.manual("x", "zubat", 2, NOW);

@@ -341,7 +341,7 @@ public final class AutoHunt {
         double bestScore = -1;
         for (InBattleMove m : req.getMoveSet().getMoves()) {
             if (!m.canBeUsed()) continue;
-            MoveTemplate t = Moves.INSTANCE.getByName(m.getId());
+            MoveTemplate t = Moves.getByName(m.getId());
             double power = t == null ? 0 : t.getPower();
             double acc = t == null || t.getAccuracy() <= 0 ? 100 : t.getAccuracy();
             double score = power * acc / 100.0;

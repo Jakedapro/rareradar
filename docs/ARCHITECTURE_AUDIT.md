@@ -102,3 +102,13 @@ From the Cobblemon `1.8.2` sources:
 
 * `EmptyPokeBallEntity.CaptureState` = `NOT, HIT, FALL, CRITICAL, SHAKE, CAPTURED, BROKEN_FREE`. The state is a synched entity data field (`CAPTURE_STATE`), so it **is visible to the client**. This gives a real capture-verification signal: the client can watch its own thrown ball reach `CAPTURED` or `BROKEN_FREE` instead of inferring a capture from the Pokémon disappearing.
 * `CobblemonClient.clientPokedexData` (`ClientPokedexManager`) holds the player's Pokédex data on the client.
+
+## 7. Post-V3 verification (2026-10-17)
+
+* `gradle -p core test`: **98 tests, 0 failures.**
+* **Mod sources** (`src/main/java`, 18 files):
+  * `javac` type-check against hand-written stubs. Each stub signature was verified against Yarn 1.21.1 mapping files, the Cobblemon 1.8.2 sources and the Fabric API 1.21.1 sources.
+  * Real jars were used for fastutil 8.5.12, slf4j 2.0.9 and LWJGL 3.3.3.
+  * Result: **0 errors.** One lint warning (a `@JvmStatic` call through `INSTANCE`) has been fixed.
+  * Fabric Loader and Mixin APIs could not be obtained and were stubbed from documentation.
+* **Still outstanding:** a real Loom build, mixin application, and in-game testing of every feature. None of these were possible in this environment.

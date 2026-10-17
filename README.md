@@ -3,11 +3,11 @@
 Client-side Fabric mod for **Minecraft 1.21.1 + Cobblemon 1.8.x**. It finds rare Pokémon, and it is a data-driven economy assistant for the CobbleGalaxy server that gets more useful as you log real observations.
 
 > **Development status: please read.**
-> V3 was developed in an environment where the Fabric maven was blocked, so **the mod itself has not yet been compiled or launched**.
-> * The Minecraft-independent `core/` module *is* built and unit-tested (97 tests).
-> * The Minecraft-facing code was checked against Yarn 1.21.1 mappings and the Cobblemon 1.8.2 / CobbleGalaxy 2.5.0 class files.
+> V3 was developed in an environment where the Fabric maven was blocked, so **the mod has not yet been built with Loom or launched in Minecraft**.
+> * The Minecraft-independent `core/` module *is* built and unit-tested (98 tests).
+> * The Minecraft-facing sources were **type-checked with javac against stub APIs** written from Yarn 1.21.1 mappings, Cobblemon 1.8.2 sources and Fabric API 1.21.1 sources, with zero errors. Fabric Loader and Mixin signatures were stubbed from documentation, and runtime behaviour is untested.
 >
-> Expect possible compile fixes on first build, and test in single-player first.
+> Test in single-player first.
 
 ## Server rules first
 
@@ -135,7 +135,7 @@ timestamp,species,form,shiny,kind,price,ivs,nature,ability,note
 
 ## Known limitations
 
-* Not yet compiled or run in-game (see the status note above).
+* Not yet built with Loom or run in-game; only type-checked against verified stubs (see the status note above).
 * Wild Pokémon's nature, ability and IVs are not visible to the client, so they stay unknown. IVs are used only for your own Pokémon and for GTS listings.
 * CobbleGalaxy economic constants (hunt rewards, STS prices, GTS fees, boss drop rates) are undocumented. RareRadar learns them from your data and never invents them. See `docs/COBBLEGALAXY_RESEARCH.md`.
 * GTS **History** cards are recorded as sales only when their status text matches a configurable pattern; this mapping is a hypothesis to verify in-game.

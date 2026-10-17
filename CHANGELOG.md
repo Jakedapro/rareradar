@@ -3,7 +3,7 @@
 ## 3.0.0-dev — "Galaxy Profit Engine" (unreleased, development build)
 
 ### Added
-- **`core/` module**: Minecraft-independent logic with 97 unit tests (`gradle -p core test`).
+- **`core/` module**: Minecraft-independent logic with 98 unit tests (`gradle -p core test`).
 - **Rarity engine**: configurable `R = w1·S + w2·L + w3·M + w4·P + w5·D` (a priority score, not a spawn probability). Adds a watchlist with JSON import/export, plus target ranking by watchlist priority and distance-discounted score.
 - **Market database** (append-only JSONL with corruption recovery):
   - Listings, confirmed sales, STS payouts and purchases are kept separate.
@@ -58,8 +58,9 @@
 - V1 automation had no multiplayer gate, no run-time limit and no ball budget.
 - Static target references survived world changes and disconnects.
 - Stuck and approach timers reset on every re-path, so a stuck bot could loop forever (found by a new unit test).
+- Pinned hunts whose titles contain progress counters no longer create duplicates, and unpinned overlay hunts go stale after 36 h.
 - Diagonal pathfinding moves clipped head-height corners.
 - Hand-edited config values were not validated.
 
 ### Known limitations
-- The mod has **not been compiled or run against Minecraft** in the development environment (Fabric maven blocked). See README "Development status".
+- Not yet built with Loom or run in Minecraft (Fabric maven blocked in the development environment). The Minecraft-facing sources pass a javac type-check against stubs verified from Yarn 1.21.1, Cobblemon 1.8.2 and Fabric API sources.

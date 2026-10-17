@@ -60,6 +60,7 @@ public final class HuntTracker {
                 cur.progress = s.progress; cur.required = s.required; cur.details = s.details; changed = true;
             }
             if (s.deadline != null) cur.deadline = s.deadline;
+            cur.lastSeen = s.lastSeen;
             if (cur.rewardHuntPoints == null) cur.rewardHuntPoints = s.rewardHuntPoints;
             if (cur.rewardMoney == null) cur.rewardMoney = s.rewardMoney;
             if (cur.stars == 0) cur.stars = s.stars;

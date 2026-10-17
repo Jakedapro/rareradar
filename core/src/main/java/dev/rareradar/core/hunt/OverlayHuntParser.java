@@ -19,6 +19,12 @@ public final class OverlayHuntParser {
 
     private OverlayHuntParser() {}
 
+    /** Identity of an overlay hunt; progress counters ("1/3") and timers are stripped so updates don't create duplicates. */
+    static String key(String group, String title, String species) {
+        String t = (title == null ? "" : title).replaceAll("\\d+\\s*/\\s*\\d+", "").replaceAll("\\d+\\s*[hms]\\b", "").replaceAll("\\s+", " ").trim();
+        return ((group == null ? "" : group.trim()) + "|" + t + "|" + species).toLowerCase(Locale.ROOT);
+    }
+
     public static HuntObjective parse(String group, String title, String speciesId, List<String> aspects,
                                       List<String> details, long remainingMillis, long now) {
         HuntObjective h = new HuntObjective();
@@ -31,7 +37,8 @@ public final class OverlayHuntParser {
         if (details != null) h.details.addAll(details);
         h.createdAt = now;
         h.deadline = remainingMillis > 0 ? now + remainingMillis : null;
-        h.overlayKey = (h.group + "|" + h.title + "|" + h.species).toLowerCase(Locale.ROOT);
+        h.lastSeen = now;
+        h.overlayKey = key(h.group, h.title, h.species);
 
         StringBuilder all = new StringBuilder(h.title).append('\n').append(h.group);
         for (String d : h.details) all.append('\n').append(d);
