@@ -13,6 +13,7 @@ Client-side Fabric mod for **Minecraft 1.21.1 + Cobblemon 1.8.x**. It finds rare
   * **CobbleGalaxy** is included as authorised because you stated that staff granted permission. It still needs enabling every session.
   * Other multiplayer servers need an explicit, recorded confirmation.
   * Backspace is the emergency stop.
+* **Money tracking** is read-only. It reads your sidebar balance and server messages you have labelled on the Money page, and never invents a transaction.
 * **Trading is never automated.** Assisted mode only posts chat alerts, and only when backed by confirmed sales; you decide and click yourself.
 * **Everything else** (radar, HUD, dashboard, calculators, and the read-only CobbleGalaxy bridge) only *displays* information your client already received or you typed in.
 

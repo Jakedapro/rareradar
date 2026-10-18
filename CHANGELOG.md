@@ -13,6 +13,16 @@
 - **STS vs GTS:** your logged STS payouts against confirmed GTS sales after your fee, with a rough time per sale. Asking prices never count.
 - **Capture recommendations on the Radar page:** the chance per throw, and expected balls, for the balls in your inventory against each sighted Pokémon (overworld, full HP, no status). Conditional balls are not guessed.
 - **Lifetime statistics** and an **At a glance** block on Overview: hunting, trading and earnings, last 7 days vs the previous 7.
+- **Money page: automatic transaction tracking from real server messages.**
+  - Any server message with one money amount appears as a candidate. Label it once (STS payout, my GTS sale, my purchase, other income, other spending) and RareRadar learns that exact format.
+  - Matching messages are then recorded automatically in `data/transactions.jsonl`. Labelled STS payouts and own sales that name a species also become STS/SALE price evidence.
+  - Unlabelled messages are never counted.
+- **Sidebar balance tracking.** Your balance is read from the server's scoreboard sidebar (read-only).
+  - Each session's observed change is saved and shown as observed Pokédollars per hour.
+  - A balance change of the same amount within 5 s confirms a labelled transaction (✔).
+  - The first reading after connecting is a baseline, never income.
+- **Resale candidates:** a listing is a STRONG candidate only if even a lower-quartile confirmed resale profits after your fee, and the item sells at least 0.5 times per week (90% lower bound). An unknown fee caps it at "maybe". Trade alerts use the same test.
+- **Hunt time estimates** use your best-measured biome (encounter rate × species share, blended with the spawn model), including shiny odds for shiny hunts.
 
 ## 4.0.0-alpha.1 — "Project Autonomy"
 
