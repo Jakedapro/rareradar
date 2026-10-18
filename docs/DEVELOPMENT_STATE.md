@@ -49,4 +49,7 @@ Everything V4 had before (radar, AutoHunt, GTS capture, planners…) keeps its p
 - In game: `docs/LAB.md`. Start with suite `smoke`, then the others.
 
 ## Build / commit status
-See the latest commit on the branch and its Actions run; update this section with the SHA and artifact after each push.
+- Code commit: `852377f` on `claude/awesome-hopper-dflmk3`.
+- GitHub Actions run 39124029467: **success** (core tests, stub type-check, real Loom build, jar content check incl. Lab classes).
+  https://github.com/Jakedapro/rareradar/actions/runs/39124029467 — artifact `rareradar-jar`; also published to the `dev-latest` pre-release.
+- BUILT successfully is **not** in-game verified. No Lab scenario has been run in Minecraft yet.
