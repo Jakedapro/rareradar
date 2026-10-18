@@ -102,6 +102,18 @@ class HuntTest {
         assertTrue(t.low() < t.value() && t.value() < t.high());
     }
 
+    @Test void modelRateIsLowConfidenceAndZeroModelIsUnknown() {
+        HuntObjective h = HuntObjective.manual("x", "gible", 2, NOW);
+        HuntOptimizer.Inputs in = new HuntOptimizer.Inputs();
+        in.catchAttempts = 98; in.catchSuccesses = 98;
+        in.rate = x -> new HuntOptimizer.RateInput(0, 1, "in desert (model share)", 4.0);
+        var t = HuntOptimizer.completionMinutes(h, in);
+        assertEquals(60.0 * 2 / (4.0 * 0.99), t.value(), 0.5);
+        assertEquals(dev.rareradar.core.util.Confidence.LOW, t.confidence());
+        in.rate = x -> new HuntOptimizer.RateInput(0, 1, "nowhere", 0.0);
+        assertFalse(HuntOptimizer.completionMinutes(h, in).known());
+    }
+
     @Test void unknownRateIsNotInvented() {
         HuntObjective h = HuntObjective.manual("x", "mew", 1, NOW);
         assertFalse(HuntOptimizer.completionMinutes(h, new HuntOptimizer.Inputs()).known());

@@ -44,8 +44,17 @@ final class Tabs {
         HuntOptimizer.Inputs in = new HuntOptimizer.Inputs();
         double hours = g.exposure.totalHours();
         List<EncounterRecord> log = g.encounters.all();
+        Map<String, Double> byBiome = new HashMap<>();
+        for (String b : g.exposure.biomes()) byBiome.put(b, g.exposure.hours(b));
         in.rate = h -> {
             if (h.species == null || hours <= 0) return null;
+            // Best measured area: the area's encounter rate × the species' share there (sightings, blended with the
+            // spawn model when cached), times the shiny odds for shiny hunts. Falls back to the all-areas count.
+            var opts = dev.rareradar.core.hunting.ShinyHuntPlanner.rank(h.species, log, byBiome,
+                    cachedModelShare(h.species), h.requiresShiny() ? g.cfg.shinyRate : 1);
+            for (var o : opts) if (o.rateKnown())
+                return new HuntOptimizer.RateInput(0, o.exposureHours(), "in " + o.where() + " (" + o.shareSource().name().toLowerCase(Locale.ROOT) + " share"
+                        + (h.requiresShiny() ? String.format(Locale.ROOT, ", 1/%.0f shiny", g.cfg.shinyRate) : "") + ")", o.targetShinyPerHour());
             long n = 0;
             for (EncounterRecord r : log) if (h.species.equals(r.species) && (!h.requiresShiny() || r.shiny)) n++;
             return new HuntOptimizer.RateInput(n, hours, "across all logged areas");
@@ -625,6 +634,20 @@ final class Tabs {
 
     private static final Map<String, java.util.concurrent.CompletableFuture<Map<String, Double>>> MODEL_SHARE = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** Spawn-model share per biome for a species, computed once in the background; empty until ready. */
+    static Map<String, Double> cachedModelShare(String species) {
+        var kb = g().knowledge;
+        if (!kb.isLoaded() || species == null) return Map.of();
+        if (MODEL_SHARE.size() > 64) MODEL_SHARE.clear();
+        var f = MODEL_SHARE.computeIfAbsent(species.toLowerCase(Locale.ROOT), sp -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            Map<String, Double> m = new HashMap<>();
+            for (var r : dev.rareradar.core.knowledge.SpawnProbability.bestBiomes(kb, sp, dev.rareradar.core.knowledge.SpawnProbability.Context.openSky(null, null), 400))
+                m.merge(r.biomeId(), r.share().share(), Math::max);
+            return m;
+        }));
+        return f.isDone() && !f.isCompletedExceptionally() ? f.join() : Map.of();
+    }
+
     /** Shiny-hunt plan for the selected hunt's species (or the radar's top target), plus the overall dry streak. */
     static void shinyHunting(List<Line> out, Galaxy g, HuntObjective sel) {
         double rate = g.cfg.shinyRate;
@@ -634,19 +657,8 @@ final class Tabs {
         out.add(Line.t("  " + streak.note()));
         String species = sel != null && sel.species != null ? sel.species : null;
         if (species == null) { out.add(Line.dim("  Select a hunt with a species (◀ ▶) to see where to shiny-hunt it.")); return; }
-        Map<String, Double> model = Map.of();
-        var kb = g.knowledge;
-        if (kb.isLoaded()) {
-            if (MODEL_SHARE.size() > 64) MODEL_SHARE.clear();
-            var f = MODEL_SHARE.computeIfAbsent(species.toLowerCase(Locale.ROOT), sp -> java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-                Map<String, Double> m = new HashMap<>();
-                for (var r : dev.rareradar.core.knowledge.SpawnProbability.bestBiomes(kb, sp, dev.rareradar.core.knowledge.SpawnProbability.Context.openSky(null, null), 400))
-                    m.merge(r.biomeId(), r.share().share(), Math::max);
-                return m;
-            }));
-            if (f.isDone() && !f.isCompletedExceptionally()) model = f.join();
-            else out.add(Line.dim("  computing spawn model…"));
-        }
+        Map<String, Double> model = cachedModelShare(species);
+        if (model.isEmpty() && g.knowledge.isLoaded()) out.add(Line.dim("  computing spawn model…"));
         Map<String, Double> hours = new HashMap<>();
         for (String b : g.exposure.biomes()) hours.put(b, g.exposure.hours(b));
         var opts = dev.rareradar.core.hunting.ShinyHuntPlanner.rank(species, log, hours, model, rate);

@@ -16,7 +16,13 @@ import java.util.*;
  */
 public final class HuntOptimizer {
     /** Observed encounters of the target and the hours of observation they were counted over. */
-    public record RateInput(long encounters, double exposureHours, String where) {}
+    /**
+     * @param modelPerHour expected target encounters per hour from a model (e.g. measured area encounter rate × spawn
+     *                     share, or × shiny odds); NaN when the rate comes directly from counted sightings
+     */
+    public record RateInput(long encounters, double exposureHours, String where, double modelPerHour) {
+        public RateInput(long encounters, double exposureHours, String where) { this(encounters, exposureHours, where, Double.NaN); }
+    }
 
     public record Ranked(HuntObjective hunt, Estimate minutes, Estimate rewardValue, Estimate valuePerHour,
                          Estimate pointsPerHour, String explanation) {}
@@ -52,6 +58,12 @@ public final class HuntOptimizer {
                 return new Estimate(m, m * 0.5, m * 2, 0, Confidence.LOW, "no encounter data for this species; using your average minutes per hunt catch");
             }
             return Estimate.unknown("no encounter data for " + h.species + " yet");
+        }
+        if (Double.isFinite(r.modelPerHour())) {
+            if (!(r.modelPerHour() > 0)) return Estimate.unknown("model gives no encounters " + r.where());
+            double eff = r.modelPerHour() * p, mins = in.travelMinutes + 60.0 * k / eff;
+            return new Estimate(mins, in.travelMinutes + (mins - in.travelMinutes) * 0.5, Math.min(in.travelMinutes + (mins - in.travelMinutes) * 3, 60 * 24 * 30),
+                    0, Confidence.LOW, String.format(Locale.ROOT, "model: %.2f/h %s; catch rate %.0f%%", r.modelPerHour(), r.where(), p * 100));
         }
         double lambda = (r.encounters() + 0.5) / r.exposureHours(); // Jeffreys posterior mean, per hour
         double[] ci = Stats.poissonRate(r.encounters(), r.exposureHours(), 0.8);
