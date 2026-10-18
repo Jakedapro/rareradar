@@ -46,6 +46,13 @@ public final class V3Config {
     /** Shiny odds 1 in N used by shiny-hunt planning. Cobblemon 1.8.2 default 8192; change it if your server documents another. */
     public double shinyRate = 8192;
 
+    /** Read your balance from the server's scoreboard sidebar and record labelled money messages (read-only). */
+    public boolean trackMoney = true;
+    /** Regex picking the sidebar line that shows your balance (blank = built-in default). */
+    public String balanceLabel = "";
+    /** Money-message formats you labelled on the Money page, learned from real server messages. */
+    public java.util.List<dev.rareradar.core.economy.TransactionRule> transactionRules = new java.util.ArrayList<>();
+
     // Economics inputs (user-entered; NaN = unknown)
     public double huntPointValue = Double.NaN;
     public double tokenValue = Double.NaN;
@@ -81,6 +88,9 @@ public final class V3Config {
         if (!(travelMinutes >= 0) || travelMinutes > 600) travelMinutes = 0;
         if (tradingMode == null) tradingMode = TradeAssistant.Mode.OBSERVE;
         if (!(shinyRate >= 1 && shinyRate <= 1_000_000)) shinyRate = 8192;
+        if (balanceLabel == null) balanceLabel = "";
+        if (transactionRules == null) transactionRules = new java.util.ArrayList<>();
+        transactionRules.removeIf(r -> r == null || !r.compile());
         if (!Double.isNaN(gtsFeePercent) && !(gtsFeePercent >= 0 && gtsFeePercent <= 50)) gtsFeePercent = Double.NaN;
         if (privateServerAllowlist == null) privateServerAllowlist = new LinkedHashSet<>();
         if (rarity == null) rarity = new RarityConfig();

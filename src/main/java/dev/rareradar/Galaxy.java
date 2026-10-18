@@ -61,6 +61,10 @@ public final class Galaxy {
     public final dev.rareradar.core.automation.TaskStore tasks;
     public final dev.rareradar.core.automation.StrategyEvaluator strategies = new dev.rareradar.core.automation.StrategyEvaluator();
     private final JsonlStore<dev.rareradar.core.automation.AuditEvent> auditStore;
+    /** Money events from server messages the player labelled; never inferred. */
+    public final dev.rareradar.core.economy.TransactionLedger transactions;
+    public final dev.rareradar.core.economy.MoneyMessageJournal moneyMessages = new dev.rareradar.core.economy.MoneyMessageJournal(40);
+    public final dev.rareradar.core.economy.BalanceTracker balance;
     private volatile boolean training;
 
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().serializeSpecialFloatingPointValues().disableHtmlEscaping().create();
@@ -90,6 +94,8 @@ public final class Galaxy {
             int[] r = spawnRules.loadDirectory(spawnDir);
             Log.info("Loaded spawn rules from " + r[0] + " file(s), " + r[1] + " failed");
         }
+        transactions = new dev.rareradar.core.economy.TransactionLedger(dataDir.resolve("transactions.jsonl"), io);
+        balance = new dev.rareradar.core.economy.BalanceTracker(cfg.balanceLabel);
         profiles = loadProfiles();
         auditStore = new JsonlStore<>(dataDir.resolve("automation_audit.jsonl"), dev.rareradar.core.automation.AuditEvent.class, io);
         dev.rareradar.core.automation.AutomationController.Limits lim = new dev.rareradar.core.automation.AutomationController.Limits();

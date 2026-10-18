@@ -416,6 +416,101 @@ final class Tabs {
         }
     }
 
+    // =================================================================== Money (transactions + balance)
+    static final class MoneyTab implements Tab {
+        private static int selected;
+        private TextFieldWidget labelField;
+
+        public String name() { return "Money"; }
+
+        public int widgets(DashboardScreen s, int x, int y, int w) {
+            s.button(x, y, 24, "◀", () -> selected = Math.max(0, selected - 1));
+            s.button(x + 26, y, 24, "▶", () -> selected++);
+            int bx = x + 56;
+            for (var k : dev.rareradar.core.economy.TransactionKind.values()) {
+                s.button(bx, y, 92, k.label, () -> {
+                    var list = g().moneyMessages.recent();
+                    if (list.isEmpty()) throw new IllegalArgumentException("No unlabelled money message yet");
+                    var e = list.get(Math.min(selected, list.size() - 1));
+                    var r = MoneyCapture.label(e.message(), k);
+                    g().moneyMessages.remove(e);
+                    s.flash("§aLearned \"" + k.label + "\" format from: " + e.message());
+                    RareRadarClient.LOG.info("[Money] learned rule {} ({}) regex {}", r.id, k, r.regex);
+                    s.rebuild();
+                });
+                bx += 94;
+            }
+            int y2 = y + 22;
+            s.button(x, y2, 130, "Delete newest rule", () -> {
+                var rules = g().cfg.transactionRules;
+                if (rules.isEmpty()) throw new IllegalArgumentException("No rules");
+                var r = rules.remove(rules.size() - 1);
+                g().saveConfig();
+                s.flash("§eDeleted rule learned from: " + r.example);
+                s.rebuild();
+            });
+            labelField = s.field(x + 134, y2, 200, "balance line regex (blank = default)");
+            labelField.setText(g().cfg.balanceLabel);
+            s.button(x + 338, y2, 60, "Set", () -> {
+                g().cfg.balanceLabel = labelField.getText().trim();
+                g().balance.setLabel(g().cfg.balanceLabel);
+                g().balance.resetSession();
+                g().saveConfig();
+            });
+            s.button(x + 402, y2, 110, "Tracking: " + (g().cfg.trackMoney ? "on" : "off"), () -> { g().cfg.trackMoney = !g().cfg.trackMoney; g().saveConfig(); s.rebuild(); });
+            return 44;
+        }
+
+        public void lines(List<Line> out) {
+            Galaxy g = g();
+            long now = now();
+            var b = g.balance;
+            out.add(Line.h("BALANCE (scoreboard sidebar, read-only)"));
+            if (Double.isNaN(b.current())) out.add(Line.dim("  No balance line found on the sidebar. If your sidebar shows your money, set a regex that matches that line."));
+            else {
+                out.add(Line.t("  Now " + dev.rareradar.core.util.Money.fmt(b.current()) + " · this session " + signed(b.sessionNet()) + " (observed) · from line \"" + b.lastLine() + "\""));
+                var ch = b.changes();
+                for (int i = Math.max(0, ch.size() - 5); i < ch.size(); i++)
+                    out.add(Line.dim("  " + ago(ch.get(i).ts()) + "  " + signed(ch.get(i).delta())));
+            }
+            out.add(Line.blank());
+            out.add(Line.h("RECORDED TRANSACTIONS (only formats you labelled; ✔ = matched by a balance change)"));
+            var sess = g.sessions.current();
+            long[] since = {sess == null ? now : sess.start, now - 7 * 86_400_000L, 0};
+            String[] names = {"session", "7 days", "all time"};
+            for (int i = 0; i < 3; i++) {
+                var t = g.transactions.totals(since[i]);
+                StringBuilder sb = new StringBuilder("  " + names[i] + ": net " + signed(g.transactions.net(since[i])));
+                for (var e : t.entrySet()) sb.append(" · ").append(e.getKey().label).append(" ").append(dev.rareradar.core.util.Money.fmt(e.getValue()));
+                out.add(Line.t(sb.toString()));
+            }
+            var recent = g.transactions.all();
+            for (int i = recent.size() - 1, k = 0; i >= 0 && k < 6; i--, k++) {
+                var t = recent.get(i);
+                out.add(Line.dim(String.format(Locale.ROOT, "  %s %s %s %s%s", t.balanceConfirmed ? "✔" : " ", ago(t.ts), t.kind.label, signed(t.signed()),
+                        t.subject == null ? "" : " (" + t.subject + ")")));
+            }
+            out.add(Line.blank());
+            var cands = g.moneyMessages.recent();
+            out.add(Line.h("UNLABELLED MONEY MESSAGES (" + cands.size() + ") — select with ◀ ▶, then click what it is"));
+            if (cands.isEmpty()) out.add(Line.dim("  None yet. Sell to the server, or wait for one of your GTS listings to sell; the server's message will appear here."));
+            selected = Math.min(selected, Math.max(0, cands.size() - 1));
+            for (int i = 0; i < Math.min(10, cands.size()); i++) {
+                var e = cands.get(i);
+                String l = (i == selected ? "▶ " : "  ") + ago(e.ts()) + "  " + e.message();
+                out.add(i == selected ? Line.good(l) : Line.t(l));
+            }
+            out.add(Line.dim("  Label only messages about YOUR money. Labelling creates an exact-format rule; other players' chat can't match it."));
+            out.add(Line.blank());
+            out.add(Line.h("LEARNED FORMATS (" + g.cfg.transactionRules.size() + ")"));
+            for (var r : g.cfg.transactionRules) out.add(Line.dim("  " + r.kind.label + ": " + r.example));
+        }
+
+        private static String signed(double v) {
+            return Double.isNaN(v) ? "?" : (v >= 0 ? "+" : "−") + dev.rareradar.core.util.Money.fmt(Math.abs(v));
+        }
+    }
+
     // =================================================================== Hunts
     static final class Hunts implements Tab {
         private TextFieldWidget title, species, count, points, money, current;

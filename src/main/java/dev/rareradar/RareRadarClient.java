@@ -71,6 +71,7 @@ public class RareRadarClient implements ClientModInitializer {
         }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
             AutoHunt.stop(client, "disconnected");
+            MoneyCapture.onDisconnect();
             Galaxy.get().controller.setProfile(null, System.currentTimeMillis());
             RadarScanner.clear();
             Galaxy g = Galaxy.get();
@@ -113,6 +114,7 @@ public class RareRadarClient implements ClientModInitializer {
             RadarScanner.tick(client);
             CobbleGalaxyBridge.tick(client);
             GtsCapture.tick(client);
+            MoneyCapture.tick(client);
             AutoHunt.tick(client);
             if (client.player != null) {
                 ++inventoryTick;

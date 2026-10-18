@@ -59,6 +59,7 @@ public final class GtsCapture {
     }
 
     static void onSystemMessage(String text) {
+        if (MoneyCapture.onSystemMessage(text)) return; // a labelled money message (STS payout, own sale, …)
         Galaxy g = Galaxy.get();
         if (g == null || !g.cfg.captureGtsChat) return;
         GtsTextParser.Result r = GtsTextParser.parseAnnouncement(text, GtsCapture::isSpecies);

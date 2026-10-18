@@ -111,7 +111,8 @@ public final class GtsTextParser {
     }
 
     /** The single money amount in the text; NaN if none, -1 if more than one distinct amount. */
-    static double singlePrice(String s) {
+    /** The one money amount in {@code s}; NaN if none, -1 if several different amounts. */
+    public static double singlePrice(String s) {
         Matcher m = MONEY.matcher(s);
         double found = Double.NaN;
         while (m.find()) {
@@ -167,5 +168,5 @@ public final class GtsTextParser {
         return v;
     }
 
-    static String clean(String s) { return FORMAT_CODES.matcher(s).replaceAll("").replace(' ', ' ').trim(); }
+    public static String clean(String s) { return FORMAT_CODES.matcher(s).replaceAll("").replace(' ', ' ').trim(); }
 }

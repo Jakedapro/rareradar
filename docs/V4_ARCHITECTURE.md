@@ -87,3 +87,24 @@ All data lives under `config/rareradar/`.
   * Purchases are irreversible spending.
   * Modes A (observe) and B (assisted recommendations) are implemented, and the controller exposes Mode C as *unavailable* with this reason.
 * **No reinforcement learning.** Predictions are recalibrated with transparent statistics (prediction error per strategy).
+
+## Money tracking (`core/economy`, `MoneyCapture`, `SidebarReader`)
+
+RareRadar never guesses what a server money message means.
+
+**Messages.** Every system message carrying exactly one amount, and not already parsed as a GTS listing broadcast, is offered as a *candidate* on the Money page.
+- The player labels a candidate once: STS payout, my GTS sale, my GTS purchase, other income or other spending.
+- `TransactionRule.learn` turns that real message into an exact-format, fully anchored regex:
+  - the amount becomes a capture group;
+  - a recognised species name becomes the subject;
+  - other numbers are generalised;
+  - everything else stays literal.
+- Matching messages become `Transaction`s in `data/transactions.jsonl`. They update session income or spending.
+- Labelled STS payouts and own sales naming a species also become `STS` / `SALE` market evidence (`Source.OWN_TRADE`).
+
+**Balance.** `SidebarReader` reads the scoreboard sidebar exactly as vanilla draws it. `BalanceTracker` takes the single line matching the balance label:
+- The first reading per connection is a baseline, never income.
+- Two candidate lines count as ambiguous and are ignored.
+- A balance change within 5 s of a labelled transaction with the same signed amount marks that transaction ✔ confirmed.
+
+Nothing is clicked or sent. Unlabelled messages are never counted as money.

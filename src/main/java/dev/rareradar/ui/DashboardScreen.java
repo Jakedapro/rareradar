@@ -18,7 +18,7 @@ import java.util.List;
  */
 public class DashboardScreen extends Screen {
     private static int lastTab;
-    private final List<Tab> tabs = List.of(new Tabs.Overview(), new Tabs.Radar(), new Tabs.Economy(), new Tabs.Market(),
+    private final List<Tab> tabs = List.of(new Tabs.Overview(), new Tabs.Radar(), new Tabs.Economy(), new Tabs.Market(), new Tabs.MoneyTab(),
             new Tabs.Hunts(), new Tabs.Breeding(), new Tabs.Dex(), new Tabs.Spawns(), new Tabs.Inventory(),
             new Tabs.History(), new Tabs.Knowledge(), new Tabs.Automation(), new Tabs.Config());
     private int tab = Math.min(lastTab, 12);
@@ -29,7 +29,7 @@ public class DashboardScreen extends Screen {
     private String flash = "";
     private int flashTicks;
 
-    public DashboardScreen() { super(Text.literal("RareRadar V3 — Galaxy Profit Engine")); }
+    public DashboardScreen() { super(Text.literal("RareRadar V4 — Project Autonomy")); }
 
     @Override
     protected void init() {
