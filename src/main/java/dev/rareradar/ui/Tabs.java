@@ -216,6 +216,10 @@ final class Tabs {
         out.add(Line.t(String.format(Locale.ROOT, "Earnings: %s realised in total · last 7 days %s/h · previous 7 days %s/h%s",
                 Money.fmt(all.realisedProfit()), Money.fmt(l.last7().profitPerHour()), Money.fmt(l.prev7().profitPerHour()),
                 Double.isFinite(chg) ? String.format(Locale.ROOT, " (%+.0f%%)", 100 * chg) : "")));
+        out.add(l.observedHours() > 0
+                ? Line.t(String.format(Locale.ROOT, "          Observed balance change (sidebar): %s over %.1f h = %s/h — the most direct measure of what you actually earned",
+                        Money.fmt(l.observedBalanceNet()), l.observedHours(), Money.fmt(l.observedPerHour())))
+                : Line.dim("          No sidebar balance readings yet (Money page) — earnings above are only what you logged or labelled."));
         if (l.best() != null)
             out.add(Line.dim(String.format(Locale.ROOT, "          Best session: %s/h over %.0f min (%s).", Money.fmt(l.best().realisedProfit() / (l.best().minutes() / 60)),
                     l.best().minutes(), java.time.Instant.ofEpochMilli(l.best().start).atZone(ZoneId.systemDefault()).toLocalDate())));
@@ -394,11 +398,28 @@ final class Tabs {
                     out.add(Line.dim("     rejected: " + (smp.length() > 140 ? smp.substring(0, 140) + "…" : smp)));
             }
             out.add(Line.blank());
+            resaleCandidates(out, g, now);
+            out.add(Line.blank());
             DashboardText.opportunities(out, g.opportunities.marketWide(now), 8);
             out.add(Line.blank());
             stsVsGts(out, g, now);
             out.add(Line.blank());
             DashboardText.marketSummary(out, g.market, g.valuator, now, 30);
+        }
+    }
+
+    /** Listings from the last 3 days that could be resold at a profit, judged on confirmed sales, fee and liquidity. */
+    static void resaleCandidates(List<Line> out, Galaxy g, long now) {
+        var list = g.opportunities.assessRecentListings(g.cfg.gtsFeePercent, now);
+        out.add(Line.h("RESALE CANDIDATES (recent listings · confirmed sales only · fee and liquidity counted · you decide and buy yourself)"));
+        if (list.isEmpty()) { out.add(Line.dim("  None. This needs 3+ confirmed sales per Pokémon (MEDIUM confidence) and a listing below them.")); return; }
+        for (int i = 0; i < Math.min(8, list.size()); i++) {
+            var a = list.get(i);
+            String l = String.format(Locale.ROOT, "  %-8s %s asking %s · margin %s (below-typical %s) · ~%s/sale — %s",
+                    a.verdict() == dev.rareradar.core.market.OpportunityFinder.Verdict.BUY_CANDIDATE ? "STRONG" : "maybe", a.listing().key(),
+                    Money.fmt(a.listing().price), Money.fmt(a.expectedNet()), Money.fmt(a.conservativeNet()),
+                    Double.isFinite(a.daysToSell()) ? String.format(Locale.ROOT, "%.1fd", a.daysToSell()) : "?", a.reason());
+            out.add(a.verdict() == dev.rareradar.core.market.OpportunityFinder.Verdict.BUY_CANDIDATE ? Line.good(l) : Line.t(l));
         }
     }
 

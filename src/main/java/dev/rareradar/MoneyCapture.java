@@ -88,6 +88,8 @@ public final class MoneyCapture {
         if (g == null || !g.cfg.trackMoney || client.world == null) return;
         BalanceTracker.Change c = g.balance.observe(SidebarReader.lines(client), System.currentTimeMillis());
         if (c != null) reconcile(g);
+        var cur = g.sessions.current();
+        if (cur != null && Double.isFinite(g.balance.sessionNet())) cur.balanceNet = g.balance.sessionNet();
     }
 
     private static void reconcile(Galaxy g) {

@@ -25,6 +25,10 @@ class LifetimeTest {
         assertEquals(1.0, l.profitPerHourChange(), 1e-9);
         assertEquals(16 / 6.0, l.ballsPerCatch(), 1e-9);
         assertEquals(9_000, l.best().realisedProfit(), 1e-9);
+        assertTrue(Double.isNaN(l.observedPerHour()), "no sidebar readings");
+        var withBalance = s(NOW - D, 2, 0, 0, 0);
+        withBalance.balanceNet = 3_000;
+        assertEquals(1_500, Reports.lifetime(List.of(withBalance, s(NOW, 1, 0, 0, 0)), NOW).observedPerHour(), 1e-9);
     }
 
     @Test void emptyHistoryIsUnknownNotZero() {

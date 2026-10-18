@@ -48,7 +48,11 @@ public final class Reports {
      * @param ballsPerCatch balls thrown per recorded catch over all sessions (NaN without catches)
      * @param best          session with the highest realised profit per hour among sessions of 10+ minutes, or null
      */
-    public record Lifetime(Period all, Period last7, Period prev7, int ballsThrown, double ballsPerCatch, SessionRecord best) {
+    public record Lifetime(Period all, Period last7, Period prev7, int ballsThrown, double ballsPerCatch, SessionRecord best,
+                           double observedBalanceNet, double observedHours) {
+        /** Pokédollars per hour from sidebar balance changes (sessions where the balance was readable); NaN otherwise. */
+        public double observedPerHour() { return observedHours > 0 ? observedBalanceNet / observedHours : Double.NaN; }
+
         /** Relative change of profit/hour, last 7 days vs the 7 before (NaN when either is unknown or zero). */
         public double profitPerHourChange() {
             double a = last7.profitPerHour(), b = prev7.profitPerHour();
@@ -60,14 +64,16 @@ public final class Reports {
         long week = 7 * 86_400_000L;
         List<SessionRecord> last = new ArrayList<>(), prev = new ArrayList<>();
         int balls = 0, caught = 0;
+        double obsNet = 0, obsHours = 0;
         SessionRecord best = null;
         for (SessionRecord r : s) {
+            if (Double.isFinite(r.balanceNet)) { obsNet += r.balanceNet; obsHours += r.minutes() / 60; }
             if (r.start > now - week) last.add(r); else if (r.start > now - 2 * week) prev.add(r);
             balls += r.ballsThrown; caught += r.caught;
             if (r.minutes() >= 10 && (best == null || r.realisedProfit() / r.minutes() > best.realisedProfit() / best.minutes())) best = r;
         }
         return new Lifetime(total("all", s), total("last 7 days", last), total("previous 7 days", prev), balls,
-                caught > 0 ? (double) balls / caught : Double.NaN, best);
+                caught > 0 ? (double) balls / caught : Double.NaN, best, obsNet, obsHours);
     }
 
     private static Period total(String key, Collection<SessionRecord> s) {
