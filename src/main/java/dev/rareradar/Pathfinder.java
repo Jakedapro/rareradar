@@ -27,10 +27,22 @@ public final class Pathfinder {
         Node(BlockPos pos, double g, double f, Node parent) { this.pos = pos; this.g = g; this.f = f; this.parent = parent; }
     }
 
+    /** Duration of the most recent {@link #find} call, for diagnostics (RareRadar Lab). */
+    public static volatile long lastFindNanos;
+
     private Pathfinder() {}
 
     /** Path to within {@code reach} blocks (horizontal) of goal; if goal is too far, returns the path to the closest explored node. */
     public static List<BlockPos> find(ClientWorld w, BlockPos start, BlockPos goal, double reach) {
+        long t0 = System.nanoTime();
+        try {
+            return search(w, start, goal, reach);
+        } finally {
+            lastFindNanos = System.nanoTime() - t0;
+        }
+    }
+
+    private static List<BlockPos> search(ClientWorld w, BlockPos start, BlockPos goal, double reach) {
         if (w == null || start == null || goal == null) return List.of();
         BlockPos s = settle(w, start);
         if (s == null) return List.of();

@@ -102,15 +102,15 @@ final class Tabs {
         java.util.function.ToDoubleFunction<String> shinyVal = sp -> { var e = v.bucketValue(new MarketKey(sp, null, true), now); return e.known() ? e.value() : Double.NaN; };
         double pShiny = dev.rareradar.core.hunting.HuntingValueEstimator.shinyProbability(shinies, enc,
                 dev.rareradar.core.hunting.HuntingValueEstimator.COBBLEMON_DEFAULT_SHINY_RATE, dev.rareradar.core.hunting.HuntingValueEstimator.COBBLEMON_DEFAULT_SHINY_RATE)[0];
-        add(opts, "Catching everything seen (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, 1, base, Double.NaN));
-        add(opts, "Shiny hunting (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, pShiny, shinyVal, Double.NaN));
-        if (!legendary.isEmpty()) add(opts, "Legendary/mythical hunting (estimate)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(legendary), hours, 1, base, Double.NaN));
+        add(opts, "HYPOTHETICAL ceiling: catch everything seen (asking prices, nothing sold)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, 1, base, Double.NaN));
+        add(opts, "HYPOTHETICAL ceiling: shiny hunting (asking prices, nothing sold)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(all), hours, pShiny, shinyVal, Double.NaN));
+        if (!legendary.isEmpty()) add(opts, "HYPOTHETICAL ceiling: legendary/mythical hunting (asking prices, nothing sold)", dev.rareradar.core.hunting.HuntingValueEstimator.estimate(toList.apply(legendary), hours, 1, base, Double.NaN));
     }
 
     private static void add(List<ProfitEngine.Option> opts, String name, dev.rareradar.core.hunting.HuntingValueEstimator.Result r) {
         if (!r.perHour().known()) return;
         opts.add(new ProfitEngine.Option(name, Activity.RARE_HUNTING, r.perHour(),
-                String.format(Locale.ROOT, "%s; %.0f%% of encounters valued; %s", r.perHour().basis(), r.coverage() * 100, String.join("; ", r.assumptions())), false));
+                String.format(Locale.ROOT, "NOT INCOME — a modelled upper bound built from asking prices; no sale has confirmed it. %s; %.0f%% of encounters valued; %s", r.perHour().basis(), r.coverage() * 100, String.join("; ", r.assumptions())), false));
     }
 
     static Estimate inventoryValue() {
@@ -329,6 +329,17 @@ final class Tabs {
 
         public void lines(List<Line> out) {
             List<ProfitEngine.Option> opts = options();
+            // Keep observed, confirmed and hypothetical money apart: only confirmed payouts/sales count as income.
+            List<Double> asks = new ArrayList<>();
+            for (var o : g().market.all()) if (o.kind == PriceObservation.Kind.LISTING && o.price > 0) asks.add(o.price);
+            var eb = dev.rareradar.core.economy.EarningsBreakdown.compute(asks, g().transactions.all(), Double.NaN);
+            out.add(Line.h("REALISED (confirmed) vs OBSERVED vs HYPOTHETICAL"));
+            out.add(eb.hasRealisedData() ? Line.good(eb.headline()) : Line.warn(eb.headline()));
+            out.add(Line.t(String.format(Locale.ROOT, "Observed asking prices: %d%s", eb.askCount(),
+                    eb.askCount() == 0 ? "" : String.format(Locale.ROOT, " (median $%,.0f, middle half $%,.0f–$%,.0f) — what sellers want, not what buyers paid", eb.askMedian(), eb.askLow(), eb.askHigh()))));
+            for (String n : eb.notes()) out.add(Line.dim("  " + n));
+            out.add(Line.dim("Options marked HYPOTHETICAL below are modelled ceilings, not income. Rank decisions by measured results."));
+            out.add(Line.blank());
             DashboardText.activities(out, opts);
             out.add(Line.blank());
             DashboardText.recommendation(out, ProfitEngine.recommend(opts));

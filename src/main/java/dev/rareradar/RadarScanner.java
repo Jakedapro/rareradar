@@ -73,6 +73,12 @@ public final class RadarScanner {
 
     public static List<Hit> hits() { return hits; }
 
+    /** Entity ids the scanner currently tracks (any rarity), for RareRadar Lab ground-truth comparison. */
+    public static int[] trackedIds() { return cache.keySet().toIntArray(); }
+
+    /** Cached observation for a tracked entity id, or null. */
+    public static PokemonObservation trackedObservation(int id) { Cached c = cache.get(id); return c == null ? null : c.obs; }
+
     /** Outline colour for an entity id, or -1. Called from render mixins; allocation-free. */
     public static int color(int entityId) { return colors.get(entityId); }
 

@@ -38,6 +38,7 @@ public class RareRadarClient implements ClientModInitializer {
         });
         Settings.load();
         Galaxy.init();
+        dev.rareradar.lab.LabRuntime.init();
         checkCobblemonVersion();
         LOG.info("Rare Radar V3 loaded");
 
@@ -71,6 +72,7 @@ public class RareRadarClient implements ClientModInitializer {
         }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
             AutoHunt.stop(client, "disconnected");
+            dev.rareradar.lab.LabRuntime.stop("disconnected");
             MoneyCapture.onDisconnect();
             Galaxy.get().controller.setProfile(null, System.currentTimeMillis());
             RadarScanner.clear();
@@ -81,6 +83,7 @@ public class RareRadarClient implements ClientModInitializer {
         }));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             AutoHunt.stop(client, "game closing");
+            dev.rareradar.lab.LabRuntime.stop("game closing");
             Galaxy g = Galaxy.get();
             g.sessions.end(System.currentTimeMillis());
             Settings.save();
@@ -97,6 +100,7 @@ public class RareRadarClient implements ClientModInitializer {
         while (stopKey.wasPressed()) {
             Galaxy.get().controller.emergencyStop(System.currentTimeMillis(), "emergency stop key");
             AutoHunt.stop(client, "emergency stop key");
+            dev.rareradar.lab.LabRuntime.emergencyStop("emergency stop key");
         }
         while (menuKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new DashboardScreen());
         while (settingsKey.wasPressed()) if (client.currentScreen == null) client.setScreen(new SettingsScreen());
@@ -116,6 +120,7 @@ public class RareRadarClient implements ClientModInitializer {
             GtsCapture.tick(client);
             MoneyCapture.tick(client);
             AutoHunt.tick(client);
+            dev.rareradar.lab.LabRuntime.tick(client);
             if (client.player != null) {
                 ++inventoryTick;
                 if (inventoryTick % 40 == 0) countInventory(client);
@@ -128,6 +133,7 @@ public class RareRadarClient implements ClientModInitializer {
             LOG.error("RareRadar tick failed", e);
             try { AutoHunt.stop(client, "internal error (see log)"); } catch (RuntimeException | LinkageError ignored) { /* already logged */ }
             Navigator.release(client);
+            dev.rareradar.lab.LabRuntime.emergencyStop("internal error in tick");
         }
     }
 

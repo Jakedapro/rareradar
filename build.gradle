@@ -16,9 +16,18 @@ dependencies {
     modCompileOnly name: 'cobblemon'
     compileOnly 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
 }
+// Short git SHA baked into the Lab's diagnostics (CI sets GITHUB_SHA; local builds fall back to `git rev-parse`).
+def gitSha = System.getenv('GITHUB_SHA')
+if (!gitSha) {
+    try { gitSha = ['git', 'rev-parse', 'HEAD'].execute(null, projectDir).text.trim() } catch (Exception ignored) { }
+}
+gitSha = (gitSha ?: 'unknown')
+if (gitSha.length() > 12) gitSha = gitSha.substring(0, 12)
 processResources {
     inputs.property 'version', project.version
+    inputs.property 'gitSha', gitSha
     filesMatching('fabric.mod.json') { expand 'version': project.version }
+    filesMatching('rareradar-build.properties') { expand 'gitSha': gitSha }
 }
 // Minecraft-independent V3 logic lives in core/ (tested on its own with `gradle -p core test`).
 // Gson is provided by Minecraft at runtime, so core sources are compiled straight into the mod.

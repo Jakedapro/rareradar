@@ -9,7 +9,7 @@ import net.minecraft.util.math.Vec3d;
 import java.util.List;
 
 /** Follows an A* path by pressing movement keys. Progress is reported to the state machine, which owns timeouts. */
-final class Navigator {
+public final class Navigator {
     private static final float MAX_TURN = 7.0f;
     private List<BlockPos> path = List.of();
     private int idx;
@@ -17,7 +17,7 @@ final class Navigator {
     private int stillTicks;
 
     /** Plans a path; true only if it actually ends within reach of the goal (A* returns partial paths otherwise). */
-    boolean plan(MinecraftClient c, BlockPos goal, double reach) {
+    public boolean plan(MinecraftClient c, BlockPos goal, double reach) {
         path = Pathfinder.find(c.world, c.player.getBlockPos(), goal, reach);
         idx = Math.min(1, Math.max(0, path.size() - 1));
         stillTicks = 0;
@@ -26,7 +26,7 @@ final class Navigator {
         return Math.hypot(end.getX() - goal.getX(), end.getZ() - goal.getZ()) <= reach + 1.5 && Math.abs(end.getY() - goal.getY()) <= 4;
     }
 
-    boolean finished() { return path.isEmpty() || idx >= path.size() - 1 && closeTo(path.get(path.size() - 1)); }
+    public boolean finished() { return path.isEmpty() || idx >= path.size() - 1 && closeTo(path.get(path.size() - 1)); }
 
     private boolean closeTo(BlockPos p) {
         ClientPlayerEntity pl = MinecraftClient.getInstance().player;
@@ -34,7 +34,7 @@ final class Navigator {
     }
 
     /** Steps along the path; returns true while the player is moving (false = no movement for several ticks). */
-    boolean follow(MinecraftClient client) {
+    public boolean follow(MinecraftClient client) {
         ClientPlayerEntity p = client.player;
         if (path.size() < 2) { release(client); return false; }
         BlockPos node = path.get(idx);
@@ -60,13 +60,13 @@ final class Navigator {
         return stillTicks < 10;
     }
 
-    static void release(MinecraftClient c) {
+    public static void release(MinecraftClient c) {
         c.options.forwardKey.setPressed(false);
         c.options.jumpKey.setPressed(false);
         c.options.sprintKey.setPressed(false);
     }
 
-    static boolean faceToward(ClientPlayerEntity p, Vec3d aim, float tolerance) {
+    public static boolean faceToward(ClientPlayerEntity p, Vec3d aim, float tolerance) {
         Vec3d eye = p.getEyePos();
         double dx = aim.x - eye.x, dy = aim.y - eye.y, dz = aim.z - eye.z;
         float wantYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));

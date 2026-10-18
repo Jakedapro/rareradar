@@ -16,6 +16,8 @@ jobs:
         with: { gradle-version: '8.14.3' }
       - name: Core unit tests (no Minecraft needed)
         run: gradle -p core test
+      - name: Type-check Minecraft-facing sources against API stubs
+        run: gradle -p tools/stubcheck compileJava
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: core-test-report, path: core/build/reports/tests/test }
@@ -67,7 +69,7 @@ jobs:
           j=$(ls build/libs/rareradar-*.jar | grep -v sources | head -1)
           n=$(unzip -l "$j" | grep -c '\.class$' || true)
           echo "$j has $n classes"; test "$n" -gt 10
-          for f in assets/rareradar/knowledge/species.json.gz assets/rareradar/knowledge/spawns.json.gz assets/rareradar/knowledge/meta.json fabric.mod.json rareradar.mixins.json dev/rareradar/core/mechanics/CaptureMath.class dev/rareradar/core/mechanics/BallCatalog.class; do
+          for f in assets/rareradar/knowledge/species.json.gz assets/rareradar/knowledge/spawns.json.gz assets/rareradar/knowledge/meta.json fabric.mod.json rareradar.mixins.json dev/rareradar/core/mechanics/CaptureMath.class dev/rareradar/core/mechanics/BallCatalog.class dev/rareradar/core/lab/LabController.class dev/rareradar/lab/LabRuntime.class rareradar-build.properties; do
             unzip -l "$j" | grep -q "$f" || { echo "::error::$f missing from $j"; exit 1; }
           done
       - name: Publish jar to the "dev-latest" pre-release

@@ -1,15 +1,18 @@
 package dev.rareradar.ui;
 
 import dev.rareradar.Galaxy;
+import dev.rareradar.core.report.TextWrap;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 /**
  * "RareRadar V3 — Galaxy Profit Engine" dashboard. Dark panel, tab strip, per-tab input widgets and a scrollable
@@ -20,11 +23,15 @@ public class DashboardScreen extends Screen {
     private static int lastTab;
     private final List<Tab> tabs = List.of(new Tabs.Overview(), new Tabs.Radar(), new Tabs.Economy(), new Tabs.Market(), new Tabs.MoneyTab(),
             new Tabs.Hunts(), new Tabs.Breeding(), new Tabs.Dex(), new Tabs.Spawns(), new Tabs.Inventory(),
-            new Tabs.History(), new Tabs.Knowledge(), new Tabs.Automation(), new Tabs.Config());
-    private int tab = Math.min(lastTab, 12);
+            new Tabs.History(), new Tabs.Knowledge(), new Tabs.Automation(), new LabTab(), new Tabs.Config());
+    private int tab = Math.min(lastTab, tabs.size() - 1);
     private int scroll;
     private int contentTop;
     private final List<dev.rareradar.core.report.Line> lines = new ArrayList<>();
+    /** {@link #lines} word-wrapped to the current width; this is what is drawn and scrolled. */
+    private final List<dev.rareradar.core.report.Line> view = new ArrayList<>();
+    /** Widgets the current tab added through button()/field(); re-flowed when the window is too narrow for them. */
+    private final List<ClickableWidget> tabWidgets = new ArrayList<>();
     private int refreshIn;
     private String flash = "";
     private int flashTicks;
@@ -33,19 +40,51 @@ public class DashboardScreen extends Screen {
 
     @Override
     protected void init() {
-        int x = 10, y = 22, bw = Math.max(48, (width - 20) / tabs.size() - 2);
+        // Tab strip: each button is as wide as its label needs, wrapping to further rows on narrow windows.
+        int x = 10, y = 22, right = width - 10;
         for (int i = 0; i < tabs.size(); i++) {
             final int idx = i;
-            ButtonWidget b = ButtonWidget.builder(Text.literal((i == tab ? "§e" : "") + tabs.get(i).name()), btn -> select(idx))
-                    .dimensions(x, y, bw, 16).build();
-            addDrawableChild(b);
+            String label = (i == tab ? "§e" : "") + tabs.get(i).name();
+            int bw = Math.max(36, textRenderer.getWidth(label) + 12);
+            if (x + bw > right && x > 10) { x = 10; y += 18; }
+            addDrawableChild(ButtonWidget.builder(Text.literal(label), btn -> select(idx)).dimensions(x, y, bw, 16).build());
             x += bw + 2;
-            if (x + bw > width - 10) { x = 10; y += 18; }
         }
         y += 22;
+        tabWidgets.clear();
         int used = tabs.get(tab).widgets(this, 12, y, width - 24);
+        used = reflow(y, used);
         contentTop = y + used + (used > 0 ? 4 : 0);
         refreshIn = 0;
+    }
+
+    /**
+     * If any widget of the tab runs past the right edge, lays the tab's widgets out again row by row (keeping the tab's
+     * own row grouping, wrapping inside a row when it does not fit and shrinking anything wider than the window).
+     * Returns the height used. Windows wide enough for the tab's own layout are left untouched.
+     */
+    private int reflow(int top, int used) {
+        int left = 12, right = width - 12, avail = right - left;
+        boolean overflow = false;
+        for (ClickableWidget w : tabWidgets) if (w.getX() + w.getWidth() > right) { overflow = true; break; }
+        if (!overflow) return used;
+        TreeMap<Integer, List<ClickableWidget>> rows = new TreeMap<>();
+        for (ClickableWidget w : tabWidgets) rows.computeIfAbsent(w.getY(), k -> new ArrayList<>()).add(w);
+        int visY = top;
+        for (List<ClickableWidget> row : rows.values()) {
+            row.sort((a, b) -> Integer.compare(a.getX(), b.getX()));
+            int cx = left;
+            for (ClickableWidget w : row) {
+                int ww = Math.min(w.getWidth(), avail);
+                if (cx + ww > right && cx > left) { cx = left; visY += 22; }
+                w.setX(cx);
+                w.setY(visY);
+                w.setWidth(ww);
+                cx += ww + 4;
+            }
+            visY += 22;
+        }
+        return Math.max(used, visY - top);
     }
 
     private void select(int i) {
@@ -63,6 +102,7 @@ public class DashboardScreen extends Screen {
             catch (RuntimeException e) { flash("§cError: " + e); dev.rareradar.RareRadarClient.LOG.warn("Dashboard action failed", e); }
             refreshIn = 0;
         }).dimensions(x, y, w, 18).build();
+        tabWidgets.add(b);
         return addDrawableChild(b);
     }
 
@@ -70,6 +110,7 @@ public class DashboardScreen extends Screen {
         TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 18, Text.literal(placeholder));
         f.setMaxLength(128);
         f.setPlaceholder(Text.literal("§7" + placeholder));
+        tabWidgets.add(f);
         return addDrawableChild(f);
     }
 
@@ -99,17 +140,45 @@ public class DashboardScreen extends Screen {
             lines.clear();
             try { tabs.get(tab).lines(lines); }
             catch (RuntimeException e) { lines.add(dev.rareradar.core.report.Line.warn("This page failed to build: " + e)); dev.rareradar.RareRadarClient.LOG.warn("Dashboard tab failed", e); }
+            wrapLines();
             refreshIn = 30;
         }
-        int lineH = 10, y = contentTop, max = (height - 22 - contentTop) / lineH;
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, lines.size() - max)));
-        for (int i = scroll; i < lines.size() && i < scroll + max; i++, y += lineH) {
-            var l = lines.get(i);
+        int lineH = 10, top = contentTop, bottom = height - 22, max = Math.max(1, (bottom - top) / lineH);
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, view.size() - max)));
+        // Everything below is clipped to the content panel so partial lines never bleed over the tabs or footer.
+        ctx.enableScissor(6, top, width - 6, bottom);
+        int y = top;
+        for (int i = scroll; i < view.size() && i < scroll + max; i++, y += lineH) {
+            var l = view.get(i);
             if (!l.text().isEmpty()) ctx.drawTextWithShadow(textRenderer, l.text(), 12, y, Tab.color(l.kind()));
         }
-        if (lines.size() > max) ctx.drawTextWithShadow(textRenderer, "↕ " + (scroll + 1) + "-" + Math.min(lines.size(), scroll + max) + "/" + lines.size(), width - 70, height - 14, 0x777777);
+        ctx.disableScissor();
+        if (view.size() > max) {
+            // Scrollbar: thumb size and position reflect the visible window.
+            int trackTop = top, trackH = bottom - top, thumbH = Math.max(12, trackH * max / view.size());
+            int thumbY = trackTop + (trackH - thumbH) * scroll / Math.max(1, view.size() - max);
+            ctx.fill(width - 8, trackTop, width - 5, bottom, 0x40FFFFFF);
+            ctx.fill(width - 8, thumbY, width - 5, thumbY + thumbH, 0xA08FD3FF);
+            ctx.drawTextWithShadow(textRenderer, "↕ " + (scroll + 1) + "-" + Math.min(view.size(), scroll + max) + "/" + view.size(), Math.max(10, width - 86), height - 14, 0x777777);
+        }
         String foot = flashTicks > 0 ? flash : "§7←/→ pages · ↑/↓ scroll · estimates show (range, confidence) · nothing here sends commands to the server";
+        int footMax = width - 100;
+        if (textRenderer.getWidth(foot) > footMax) foot = flashTicks > 0 ? clip(foot, footMax) : "§7←/→ pages · ↑/↓ or wheel scroll";
         ctx.drawTextWithShadow(textRenderer, foot, 10, height - 14, 0xCCCCCC);
+    }
+
+    /** Word-wraps {@link #lines} into {@link #view} (see {@link TextWrap}). */
+    private void wrapLines() {
+        view.clear();
+        int avail = Math.max(60, width - 36);
+        for (var l : lines)
+            for (String part : TextWrap.wrap(l.text(), avail, textRenderer::getWidth))
+                view.add(part == l.text() ? l : new dev.rareradar.core.report.Line(l.kind(), part));
+    }
+
+    private String clip(String s, int maxPx) {
+        int cut = TextWrap.cutPoint(s, maxPx - textRenderer.getWidth("…"), textRenderer::getWidth);
+        return s.substring(0, Math.min(cut, s.length())) + "…";
     }
 
     @Override

@@ -78,6 +78,10 @@ public final class AutoHunt {
 
     private static void start(MinecraftClient client) {
         if (client.player == null) return;
+        if (dev.rareradar.lab.LabRuntime.blocksAutoHunt()) {
+            client.player.sendMessage(Text.literal("§cAuto Hunt refused: RareRadar Lab is running (stop it first)"), false);
+            return;
+        }
         Galaxy g = Galaxy.get();
         var ctl = g.controller;
         long now = System.currentTimeMillis();
@@ -267,8 +271,12 @@ public final class AutoHunt {
         return last;
     }
 
+    /** Last throw outcome AutoHunt classified (read by RareRadar Lab; never used to decide anything here). */
+    public static volatile CaptureOutcome lastOutcome;
+
     private static void onOutcome(MinecraftClient c, CaptureOutcome o) {
         if (o == null) return;
+        lastOutcome = o;
         RareRadarClient.LOG.info("Throw outcome: {}", o.label);
         if (o == CaptureOutcome.CAPTURED) Galaxy.get().sessions.caught();
         if (c.player != null) c.player.sendMessage(Text.literal("Auto Hunt: " + o.label), true);
