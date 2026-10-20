@@ -7,6 +7,7 @@ public enum Category {
     ULTRA_BEAST("Ultra Beast", 0x33E0FF),
     PARADOX("Paradox", 0xFF6A2B),
     SHINY("Shiny", 0xFFD700),
+    VALUABLE("Valuable", 0xFFA500),
     WATCHLIST("Watchlist", 0x7CFC00),
     COMPETITIVE("Competitive", 0x4FC3F7),
     DEX_MISSING("Dex missing", 0xFFFFFF);

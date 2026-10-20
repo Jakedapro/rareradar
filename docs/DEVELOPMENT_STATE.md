@@ -28,6 +28,11 @@ Levels: IMPLEMENTED < UNIT TESTED < INTEGRATION TESTED < TYPE-CHECKED (stubs) < 
 
 Everything V4 had before (radar, AutoHunt, GTS capture, planners…) keeps its previous status in `docs/V4_VERIFICATION.md`. Nothing in the Lab has been observed working in a real client yet.
 
+## Auto Hunt changes after the Lab milestone
+- Auto Hunt now **explores** (long legs on validated routes, `Explorer.java`) while no qualifying Pokémon is in range; setting `exploreWhileIdle` (default on). Type-checked only, not run in-game.
+- New rarity category **VALUABLE**: species whose market demand >= `valuableDemand` (0.6) qualify as targets (needs market data; unknown demand never qualifies). Unit tested. Wild IVs are not visible on the client, so "good IVs" cannot be a target filter.
+- Idle/route-failure reasons are shown in the status line and action bar.
+
 ## Known limitations / bugs (honest list)
 - Lab cannot spawn Pokémon or build terrain; CAPTURE_BASIC only works when a qualifying target is already in range. "CAPTURE_SUCCESS" is AutoHunt's own ball-state classification, cross-checked only against the ball count.
 - DETECT_SCAN species/shiny checks read the same Cobblemon fields as the scanner (catches cache/refresh faults, not wrong data).

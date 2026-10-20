@@ -36,6 +36,8 @@ public final class RarityEngine {
         if (cfg.paradox && o.has("paradox")) cats.add(Category.PARADOX);
         if (cfg.shiny && o.isShiny()) cats.add(Category.SHINY);
         int watchPriority = 0;
+        double d0 = demand.applyAsDouble(o);
+        if (cfg.valuable && Double.isFinite(d0) && d0 >= cfg.valuableDemand) cats.add(Category.VALUABLE);
         if (cfg.watchlist && watchlist != null) {
             Watchlist.Entry e = watchlist.match(o);
             if (e != null) { cats.add(Category.WATCHLIST); watchPriority = Math.max(1, e.priority); }

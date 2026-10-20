@@ -39,6 +39,7 @@ public final class AutoHunt {
 
     private static AutoHuntMachine machine;
     private static final Navigator nav = new Navigator();
+    private static final Explorer explorer = new Explorer();
     private static PokemonEntity target;
     private static int ballEntityId = -1, previousBallId = -1;
     private static boolean lastPlanOk;
@@ -180,8 +181,17 @@ public final class AutoHunt {
         status = machine.state() + (target != null ? " → " + target.getPokemon().getSpecies().getName() : "")
                 + " · balls " + machine.ballsThisRun() + "/" + Galaxy.get().cfg.safety.maxBallsPerRun
                 + " · caught " + machine.captures();
-        execute(client, p, cmd);
-        explainIdle(client, p);
+        boolean searching = Settings.S.exploreWhileIdle && machine.state() == HuntState.SELECT_TARGET && machine.target() == null
+                && s.bestCandidateId == null && !s.screenOpen && p.getHealth() >= Galaxy.get().cfg.safety.minHealth;
+        if (searching) {
+            // Nothing worth catching in range: keep walking until the radar finds something.
+            explorer.step(client);
+            status = explorer.status() + " · until a qualifying Pokémon appears";
+        } else {
+            if (explorer != null) explorer.reset();
+            execute(client, p, cmd);
+            explainIdle(client, p);
+        }
         onOutcome(client, machine.consumeOutcome()); // exactly once per throw
         ctl.report(module(), switch (machine.state()) {
             case SCAN, SELECT_TARGET, RETRY -> dev.rareradar.core.automation.AutomationController.State.SCANNING;

@@ -15,6 +15,7 @@ public final class Settings {
     public int scanRange = 160;        // blocks; the client can only see what the server has sent it
     public int hudRows = 8;
     public boolean shiny = true, legendary = true, mythical = true, ultraBeast = true, paradox = true;
+    public boolean exploreWhileIdle = true; // Auto Hunt walks around looking for a target when none is in range
     public int throwRange = 9;         // blocks, catch mode
     public int trainRange = 6;         // blocks, training mode
     public int levelWindow = 6;        // +/- levels of your lead for training targets

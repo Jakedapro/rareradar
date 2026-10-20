@@ -13,6 +13,10 @@ public final class RarityConfig {
 
     public boolean shiny = true, legendary = true, mythical = true, ultraBeast = true, paradox = true;
     public boolean watchlist = true, dexMissing = false, competitive = false;
+    /** Also target Pokémon the market data says are in demand (not only shinies/legendaries/watchlist). */
+    public boolean valuable = true;
+    /** Demand in [0,1] from market data at or above which a species counts as valuable. Needs market data; unknown demand never qualifies. */
+    public double valuableDemand = 0.6;
 
     /** Species the user considers competitively valuable (manually curated; empty by default, no assumptions). */
     public Set<String> competitiveSpecies = new HashSet<>();
