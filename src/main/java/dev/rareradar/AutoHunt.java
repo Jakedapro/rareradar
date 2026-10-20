@@ -181,6 +181,7 @@ public final class AutoHunt {
                 + " · balls " + machine.ballsThisRun() + "/" + Galaxy.get().cfg.safety.maxBallsPerRun
                 + " · caught " + machine.captures();
         execute(client, p, cmd);
+        explainIdle(client, p);
         onOutcome(client, machine.consumeOutcome()); // exactly once per throw
         ctl.report(module(), switch (machine.state()) {
             case SCAN, SELECT_TARGET, RETRY -> dev.rareradar.core.automation.AutomationController.State.SCANNING;
@@ -264,6 +265,19 @@ public final class AutoHunt {
     }
 
     private static boolean lastProgress = true;
+
+    /** Tells the player (and the status line) why nothing is happening, instead of standing still silently. */
+    private static void explainIdle(MinecraftClient c, ClientPlayerEntity p) {
+        if (machine.state() == HuntState.SELECT_TARGET && machine.target() == null) {
+            int wild = RadarScanner.trackedIds().length;
+            String why = wild == 0 ? "no Pokémon within " + Settings.S.scanRange + " blocks"
+                    : wild + " Pokémon nearby, but none match your rarity/watchlist filter (Auto Hunt only walks to rare targets)";
+            status = "WAITING — " + why;
+            if (tick % 200 == 0) p.sendMessage(Text.literal("§eAuto Hunt idle: " + why), true);
+        } else if (machine.state() == HuntState.RETRY || (!lastPlanOk && machine.state() == HuntState.PLAN_ROUTE)) {
+            status += " · last route failed (no walkable path to the target)";
+        }
+    }
 
     private static String lastTransition() {
         String last = "";
